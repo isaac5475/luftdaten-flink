@@ -19,19 +19,15 @@
 package com.yourname.luftdaten;
 
 import java.time.Duration;
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
-import javax.annotation.Nonnull;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import com.yourname.luftdaten.entities.BMP280Reading;
 
 /**
  * Skeleton for a Flink DataStream Job.
@@ -54,10 +50,10 @@ public class DataStreamJob {
         FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("src/main/resources/2020-01-01_bme280_sensor_141.csv")).build();
         DataStream<String> lines = env.fromSource(source, WatermarkStrategy.noWatermarks(), "file-source");
         DataStream<String> filteredLines = lines.filter(line -> !line.startsWith("sensor_id"));
-        DataStream<BME280Reading> readings = filteredLines.map(BME280Parser::parseReading);
-        DataStream<BME280Reading> withTimestamps = readings.assignTimestampsAndWatermarks(WatermarkStrategy.<BME280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
+        DataStream<BMP280Reading> readings = filteredLines.map(BMP280Parser::parseReading);
+        DataStream<BMP280Reading> withTimestamps = readings.assignTimestampsAndWatermarks(WatermarkStrategy.<BMP280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
         DataStream<String> tempAverageHourly = withTimestamps
-                .keyBy(BME280Reading::getSensor_id)
+                .keyBy(BMP280Reading::getSensor_id)
                 .window(TumblingEventTimeWindows.of(Duration.ofHours(1)))
 //                        .aggregate()
                 .aggregate(new AggregateAverage(), new AverageResultWindowFunction());

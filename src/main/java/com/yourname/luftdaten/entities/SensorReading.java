@@ -1,4 +1,4 @@
-package com.yourname.luftdaten;
+package com.yourname.luftdaten.entities;
 
 import java.time.Instant;
 
