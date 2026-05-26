@@ -23,7 +23,9 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
+import javax.annotation.Nonnull;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
 import org.apache.flink.core.fs.Path;
@@ -52,23 +54,7 @@ public class DataStreamJob {
         FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("src/main/resources/2020-01-01_bme280_sensor_141.csv")).build();
         DataStream<String> lines = env.fromSource(source, WatermarkStrategy.noWatermarks(), "file-source");
         DataStream<String> filteredLines = lines.filter(line -> !line.startsWith("sensor_id"));
-        DataStream<BME280Reading> readings = filteredLines.map(line -> {
-            String[] fields = line.split(";");
-            BME280Reading bme280Reading = new BME280Reading();
-            bme280Reading.setSensor_id(Integer.parseInt(fields[0]));
-            bme280Reading.setLocation(Integer.parseInt(fields[2]));
-            bme280Reading.setLat(Double.parseDouble(fields[3]));
-            bme280Reading.setLon(Double.parseDouble(fields[4]));
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-            Instant timestamp = LocalDateTime.parse(fields[5], formatter).toInstant(java.time.ZoneOffset.UTC);
-            bme280Reading.setTimestamp(timestamp);
-            bme280Reading.setPressure(fields[6].isEmpty() ? null : Double.parseDouble(fields[6]));
-            bme280Reading.setAltitude(fields[7].isEmpty() ? null : Double.parseDouble(fields[7]));
-            bme280Reading.setPressureAtSeaLevel(fields[8].isEmpty() ? null : Double.parseDouble(fields[8]));
-            bme280Reading.setTemperature(fields[9].isEmpty() ? null : Double.parseDouble(fields[9]));
-            bme280Reading.setHumidity(fields[10].isEmpty() ? null : Double.parseDouble(fields[10]));
-            return bme280Reading;
-        });
+        DataStream<BME280Reading> readings = filteredLines.map(BME280Parser::parseReading);
         DataStream<BME280Reading> withTimestamps = readings.assignTimestampsAndWatermarks(WatermarkStrategy.<BME280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
         DataStream<String> tempAverageHourly = withTimestamps
                 .keyBy(BME280Reading::getSensor_id)
