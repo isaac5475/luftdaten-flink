@@ -6,6 +6,11 @@ import com.yourname.luftdaten.entities.BMP280Reading;
 import com.yourname.luftdaten.entities.SensorReading;
 
 public class BMP280Parser implements ReadingParser {
+
+    private BMP280Parser() {
+        // private constructor to prevent instantiation
+    }
+
     public static BMP280Reading parseReading(String row) {
         SensorReading sensorReading = SensorReadingParser.parseReading(row);
         BMP280Reading bmp280Reading = new BMP280Reading(sensorReading);

@@ -1,7 +1,5 @@
 package com.yourname.luftdaten.entities;
 
-import java.time.Instant;
-
 public class PMS7003Reading extends SensorReading {
     private Double p1;
     private Double p2;
