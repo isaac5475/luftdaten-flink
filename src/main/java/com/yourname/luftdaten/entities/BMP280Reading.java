@@ -8,12 +8,7 @@ public class BMP280Reading extends SensorReading {
     }
 
     public BMP280Reading(SensorReading reading) {
-        this();
-        setSensor_id(reading.getSensor_id());
-        setLocation(reading.getLocation());
-        setLat(reading.getLat());
-        setLon(reading.getLon());
-        setTimestamp(reading.getTimestamp());
+        super(reading);
     }
 
     public BMP280Reading(BMP280Reading reading) {

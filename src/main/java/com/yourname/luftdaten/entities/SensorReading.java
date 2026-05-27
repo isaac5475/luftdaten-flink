@@ -11,6 +11,15 @@ public class SensorReading {
     public SensorReading() {
     }
 
+    public SensorReading(SensorReading sensorReading) {
+        this();
+        setSensor_id(sensorReading.getSensor_id());
+        setLocation(sensorReading.getLocation());
+        setLat(sensorReading.getLat());
+        setLon(sensorReading.getLon());
+        setTimestamp(sensorReading.getTimestamp());
+    }
+
     public Integer getSensor_id() {
         return sensor_id;
     }
