@@ -1,12 +1,12 @@
 package com.yourname.luftdaten;
 
 import org.apache.flink.api.common.functions.AggregateFunction;
-import com.yourname.luftdaten.entities.BMP280Reading;
+import com.yourname.luftdaten.entities.BME280Reading;
 
 /**
  * AggregateAverage that consumes BME280Reading and produces the average temperature (Double).
  */
-public class AggregateAverage implements AggregateFunction<BMP280Reading, AggregateAverage.AvgAccumulator, Double> {
+public class AggregateAverage implements AggregateFunction<BME280Reading, AggregateAverage.AvgAccumulator, Double> {
 
     // nested static accumulator class (allowed because it's nested)
     public static class AvgAccumulator {
@@ -20,7 +20,7 @@ public class AggregateAverage implements AggregateFunction<BMP280Reading, Aggreg
     }
 
     @Override
-    public AvgAccumulator add(BMP280Reading value, AvgAccumulator acc) {
+    public AvgAccumulator add(BME280Reading value, AvgAccumulator acc) {
         if (value == null) {
             return acc;
         }

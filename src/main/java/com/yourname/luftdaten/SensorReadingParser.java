@@ -10,13 +10,33 @@ public class SensorReadingParser implements ReadingParser {
     public static SensorReading parseReading(String row) {
         String[] fields = row.split(";");
         SensorReading reading = new SensorReading();
-        reading.setSensor_id(Integer.parseInt(fields[0]));
-        reading.setLocation(Integer.parseInt(fields[2]));
-        reading.setLat(Double.parseDouble(fields[3]));
-        reading.setLon(Double.parseDouble(fields[4]));
+        reading.setSensor_id(tryGetIntegerValue(fields, 0));
+        reading.setLocation(tryGetIntegerValue(fields, 2));
+        reading.setLat(tryGetDoubleValue(fields, 3));
+        reading.setLon(tryGetDoubleValue(fields, 4));
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
         Instant timestamp = LocalDateTime.parse(fields[5], formatter).toInstant(java.time.ZoneOffset.UTC);
         reading.setTimestamp(timestamp);
         return reading;
+    }
+
+    protected static Integer tryGetIntegerValue(String[] fields, int idx) {
+        try {
+            if (fields.length > idx && !fields[idx].isEmpty()) {
+                return Integer.parseInt(fields[idx]);
+            }
+        } catch (NumberFormatException ignore) {
+        }
+        return null;
+    }
+
+    protected static Double tryGetDoubleValue(String[] fields, int idx) {
+        try {
+            if (fields.length > idx && !fields[idx].isEmpty()) {
+                return Double.parseDouble(fields[idx]);
+            }
+        } catch (NumberFormatException ignore) {
+        }
+        return null;
     }
 }

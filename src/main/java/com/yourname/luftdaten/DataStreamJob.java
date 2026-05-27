@@ -27,7 +27,7 @@ import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
-import com.yourname.luftdaten.entities.BMP280Reading;
+import com.yourname.luftdaten.entities.BME280Reading;
 
 /**
  * Skeleton for a Flink DataStream Job.
@@ -47,37 +47,18 @@ public class DataStreamJob {
         // to building Flink applications.
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("src/main/resources/2020-01-01_bme280_sensor_141.csv")).build();
+        FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("src/main/resources/2020-01_bme280.csv")).build();
         DataStream<String> lines = env.fromSource(source, WatermarkStrategy.noWatermarks(), "file-source");
         DataStream<String> filteredLines = lines.filter(line -> !line.startsWith("sensor_id"));
-        DataStream<BMP280Reading> readings = filteredLines.map(BMP280Parser::parseReading);
-        DataStream<BMP280Reading> withTimestamps = readings.assignTimestampsAndWatermarks(WatermarkStrategy.<BMP280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
+        DataStream<BME280Reading> correctReadings = filteredLines
+                .map(BME280Parser::parseReading)
+                .filter(reading -> reading.getSensor_id() != null && reading.getTemperature() != null);
+        DataStream<BME280Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<BME280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
         DataStream<String> tempAverageHourly = withTimestamps
-                .keyBy(BMP280Reading::getSensor_id)
-                .window(TumblingEventTimeWindows.of(Duration.ofHours(1)))
-//                        .aggregate()
+                .keyBy(BME280Reading::getSensor_id)
+                .window(TumblingEventTimeWindows.of(Duration.ofDays(1)))
                 .aggregate(new AggregateAverage(), new AverageResultWindowFunction());
         tempAverageHourly.print();
-//        readings.map(reading -> String.format("[%s] Sensor %d, temperature %fC, humidity %f", reading.getTimestamp().toString(), reading.getSensor_id(), reading.getTemperature(), reading.getHumidity())).print();
-        /*
-         * Here, you can start creating your execution plan for Flink.
-         *
-         * Start with getting some data from the environment, like
-         * 	env.fromSequence(1, 10);
-         *
-         * then, transform the resulting DataStream<Long> using operations
-         * like
-         * 	.filter()
-         * 	.flatMap()
-         * 	.window()
-         * 	.process()
-         *
-         * and many more.
-         * Have a look at the programming guide:
-         *
-         * https://nightlies.apache.org/flink/flink-docs-stable/
-         *
-         */
 
         // Execute program, beginning computation.
         env.execute("BME 280 basic parsing and map");

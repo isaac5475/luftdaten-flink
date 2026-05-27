@@ -3,42 +3,43 @@ package com.yourname.luftdaten.entities;
 import java.time.Instant;
 
 public class SensorReading {
-    private int sensor_id, location;
-    private double lat, lon;
+    private Integer sensor_id;
+    private Integer location;
+    private Double lat, lon;
     private Instant timestamp;
 
     public SensorReading() {
     }
 
-    public int getSensor_id() {
+    public Integer getSensor_id() {
         return sensor_id;
     }
 
-    public void setSensor_id(int sensor_id) {
+    public void setSensor_id(Integer sensor_id) {
         this.sensor_id = sensor_id;
     }
 
-    public int getLocation() {
+    public Integer getLocation() {
         return location;
     }
 
-    public void setLocation(int location) {
+    public void setLocation(Integer location) {
         this.location = location;
     }
 
-    public double getLat() {
+    public Double getLat() {
         return lat;
     }
 
-    public void setLat(double lat) {
+    public void setLat(Double lat) {
         this.lat = lat;
     }
 
-    public double getLon() {
+    public Double getLon() {
         return lon;
     }
 
-    public void setLon(double lon) {
+    public void setLon(Double lon) {
         this.lon = lon;
     }
 
