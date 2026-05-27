@@ -41,13 +41,18 @@ import com.yourname.luftdaten.entities.BME280Reading;
  * <p>If you change the name of the main class (with the public static void main(String[] args))
  * method, change the respective entry in the POM.xml file (simply search for 'mainClass').
  */
-public class DataStreamJob {
+public class DailyTemperatureBME280StreamJob {
     public static void main(String[] args) throws Exception {
         // Sets up the execution environment, which is the main entry point
         // to building Flink applications.
-        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path("src/main/resources/2020-01_bme280.csv")).build();
+        if (args.length < 1) {
+            System.err.println("Usage: DataStreamJob <input path of the CSV file>");
+            return;
+        }
+
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path(args[0])).build();
         DataStream<String> lines = env.fromSource(source, WatermarkStrategy.noWatermarks(), "file-source");
         DataStream<String> filteredLines = lines.filter(line -> !line.startsWith("sensor_id"));
         DataStream<BME280Reading> correctReadings = filteredLines
@@ -61,6 +66,6 @@ public class DataStreamJob {
         tempAverageHourly.print();
 
         // Execute program, beginning computation.
-        env.execute("BME 280 basic parsing and map");
+        env.execute("BME 280 basic parsing, filtering, daily aggregation and printing");
     }
 }
