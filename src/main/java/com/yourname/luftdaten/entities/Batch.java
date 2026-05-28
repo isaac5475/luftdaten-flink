@@ -1,14 +1,15 @@
 package com.yourname.luftdaten.entities;
 
+import java.util.ArrayList;
 import java.util.List;
 
-public class Batch {
+public class Batch<T> {
     private boolean last = false;
     private int batchId;
-    List<String> measurements;
+    List<T> measurements;
 
-    public Batch(List<String> measurements) {
-        this.measurements = measurements;
+    public Batch(List<T> measurements) {
+        this.measurements = new ArrayList<>(measurements);
     }
 
     public boolean isLast() {
@@ -27,7 +28,7 @@ public class Batch {
         this.batchId = batchId;
     }
 
-    public List<String> getMeasurements() {
+    public List<T> getMeasurements() {
         return measurements;
     }
 }

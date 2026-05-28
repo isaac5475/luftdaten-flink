@@ -18,14 +18,11 @@
 
 package com.yourname.luftdaten;
 
-import java.io.File;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.connector.file.src.FileSource;
-import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
-import org.apache.flink.core.fs.Path;
+import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import com.yourname.luftdaten.entities.Batch;
@@ -54,17 +51,26 @@ public class Q1StreamJob {
         }
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        List<String> lines = FileUtils.readLines(new File(args[0]));
-        BatchSource source = new BatchSource(lines, 100);
-        DataStream<Batch> batches = env.addSource(source);
-//        DataStream<String> filteredLines = batches.filter(line -> !line.startsWith("sensor_id"));
-//        DataStream<PMS7003Reading> validReadings = filteredLines
-//                .map(PMS7003Parser::parseReading)
-//                .filter(reading -> reading.getSensor_id() != null && reading.getP0() != null && reading.getP1() != null && reading.getP2() != null);
-//        validReadings
-//                .keyBy(PMS7003Reading::getSensor_id)   // TODO aggregate by city, not each sensor individually
-//                .window()
-//        DataStream<PMS7003Reading> withTimestamps = validReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<PMS7003Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
+        BatchSource source = new BatchSource(args[0], 100);
+        DataStream<Batch<String>> batches = env.addSource(source);
+        DataStream<Batch<String>> filteredBatches = batches.map(batch -> {
+            if (!batch.getMeasurements().isEmpty()) {
+                String firstMeasurement = batch.getMeasurements().get(0);
+                if (firstMeasurement.startsWith("sensor_id")) {
+                    batch.getMeasurements().remove(0);
+                }
+            }
+            return batch;
+        }).returns(new TypeHint<Batch<String>>() {});
+        DataStream<Batch<PMS7003Reading>> readings = filteredBatches.map(batch -> {
+            List<PMS7003Reading> parsedMeasurements = batch.getMeasurements().stream()
+                    .map(PMS7003Parser::parseReading).collect(Collectors.toCollection(ArrayList::new));
+            Batch<PMS7003Reading> newBatch = new Batch<>(parsedMeasurements);
+            newBatch.setLast(batch.isLast());
+            newBatch.setBatchId(batch.getBatchId());
+            return newBatch;
+        }).returns(new TypeHint<Batch<PMS7003Reading>>() {});
+        readings.print();
 
         // Execute program, beginning computation.
         env.execute("Q1 Stream Job");

@@ -45,7 +45,7 @@ class BatchSourceTest {
 
         @Test
         void testBatchSource() throws Exception {
-                SourceContext<Batch> ctx = (SourceContext<Batch>) mock(SourceContext.class);
+                SourceContext<Batch<String>> ctx = (SourceContext<Batch<String>>) mock(SourceContext.class);
                 BatchSource sut = new BatchSource(measurements, 2);
                 ArgumentCaptor<Batch> batchCaptor = ArgumentCaptor.forClass(Batch.class);
                 ArgumentCaptor<Long> timestampCaptor = ArgumentCaptor.forClass(Long.class);
