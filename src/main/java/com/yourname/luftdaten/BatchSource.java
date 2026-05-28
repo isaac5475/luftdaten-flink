@@ -9,14 +9,18 @@ import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.flink.streaming.api.functions.source.SourceFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import com.yourname.luftdaten.entities.Batch;
 
 public class BatchSource implements SourceFunction<Batch> {
 
+    private static final int TIMESTAMP_FIELD_IDX = 5;
+    
     private int batchSize = 100;
     private final Iterable<String> measurementsIterator;
     private long count = 1L;
     private volatile boolean isRunning = false;
+    private final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
 
     public BatchSource(Iterable<String> measurementsIterator, int batchSize) throws IOException {
         this(measurementsIterator);
@@ -48,8 +52,7 @@ public class BatchSource implements SourceFunction<Batch> {
                 continue; // skip header
             }
             lst.add(measurement);
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-            String timestampField = measurement.split(";")[5];
+            String timestampField = measurement.split(";")[TIMESTAMP_FIELD_IDX];
             Instant recordTimestamp = LocalDateTime.parse(timestampField, formatter).toInstant(java.time.ZoneOffset.UTC);
             timestamp = Math.max(timestamp, recordTimestamp.toEpochMilli());
             if (count % batchSize == 0) {
@@ -58,6 +61,7 @@ public class BatchSource implements SourceFunction<Batch> {
                 batch.setLast(!iterator.hasNext());
                 batch.setBatchId(batchId++);
                 ctx.collectWithTimestamp(batch, timestamp);
+                ctx.emitWatermark(new Watermark(timestamp));
                 lst = new ArrayList<>();
             }
             count++;
@@ -67,6 +71,7 @@ public class BatchSource implements SourceFunction<Batch> {
             batch.setLast(true);
             batch.setBatchId(batchId);
             ctx.collectWithTimestamp(batch, timestamp);
+            ctx.emitWatermark(new Watermark(timestamp));
         }
     }
 

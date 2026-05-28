@@ -14,6 +14,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.apache.flink.streaming.api.functions.source.SourceFunction.SourceContext;
@@ -48,14 +49,21 @@ class BatchSourceTest {
                 BatchSource sut = new BatchSource(measurements, 2);
                 ArgumentCaptor<Batch> batchCaptor = ArgumentCaptor.forClass(Batch.class);
                 ArgumentCaptor<Long> timestampCaptor = ArgumentCaptor.forClass(Long.class);
+                ArgumentCaptor<Watermark> watermarkArgumentCaptor = ArgumentCaptor.forClass(Watermark.class);
                 sut.run(ctx);
                 verify(ctx, times(3)).collectWithTimestamp(batchCaptor.capture(), timestampCaptor.capture());
+                verify(ctx, times(3)).emitWatermark(watermarkArgumentCaptor.capture());
 
                 List<Long> ts = timestampCaptor.getAllValues();
                 assertEquals(3, ts.size());
                 assertEquals(nowPlus1.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(), ts.get(0));
                 assertEquals(nowPlus3.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(), ts.get(1));
                 assertEquals(nowPlus4.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(), ts.get(2));
+
+                List<Watermark> wm = watermarkArgumentCaptor.getAllValues();
+                assertEquals(nowPlus1.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(), wm.get(0).getTimestamp());
+                assertEquals(nowPlus3.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(), wm.get(1).getTimestamp());
+                assertEquals(nowPlus4.toInstant(java.time.ZoneOffset.UTC).toEpochMilli(), wm.get(2).getTimestamp());
 
                 List<Batch> batches = batchCaptor.getAllValues();
                 assertEquals(3, batches.size());

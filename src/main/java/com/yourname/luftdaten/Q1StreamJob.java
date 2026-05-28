@@ -18,12 +18,17 @@
 
 package com.yourname.luftdaten;
 
+import java.io.File;
+import java.util.List;
+
+import org.apache.commons.io.FileUtils;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import com.yourname.luftdaten.entities.Batch;
 import com.yourname.luftdaten.entities.PMS7003Reading;
 
 /**
@@ -49,13 +54,17 @@ public class Q1StreamJob {
         }
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
-        FileSource<String> source = FileSource.forRecordStreamFormat(new TextLineInputFormat(), new Path(args[0])).build();
-        DataStream<String> lines = env.fromSource(source, WatermarkStrategy.noWatermarks(), "file-source");
-        DataStream<String> filteredLines = lines.filter(line -> !line.startsWith("sensor_id"));
-        DataStream<PMS7003Reading> correctReadings = filteredLines
-                .map(PMS7003Parser::parseReading)
-                .filter(reading -> reading.getSensor_id() != null && reading.getP0() != null && reading.getP1() != null && reading.getP2() != null);
-        DataStream<PMS7003Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<PMS7003Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
+        List<String> lines = FileUtils.readLines(new File(args[0]));
+        BatchSource source = new BatchSource(lines, 100);
+        DataStream<Batch> batches = env.addSource(source);
+//        DataStream<String> filteredLines = batches.filter(line -> !line.startsWith("sensor_id"));
+//        DataStream<PMS7003Reading> validReadings = filteredLines
+//                .map(PMS7003Parser::parseReading)
+//                .filter(reading -> reading.getSensor_id() != null && reading.getP0() != null && reading.getP1() != null && reading.getP2() != null);
+//        validReadings
+//                .keyBy(PMS7003Reading::getSensor_id)   // TODO aggregate by city, not each sensor individually
+//                .window()
+//        DataStream<PMS7003Reading> withTimestamps = validReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<PMS7003Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
         // Execute program, beginning computation.
         env.execute("Q1 Stream Job");
