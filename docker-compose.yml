@@ -1,0 +1,51 @@
+services:
+  jobmanager:
+    image: flink:1.19.0-scala_2.12
+    hostname: jobmanager
+    container_name: luftdaten_jobmanager
+    ports:
+      - "8081:8081"
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: jobmanager
+    command: jobmanager
+    networks:
+      - luftdaten-net
+
+  taskmanager:
+    image: flink:1.19.0-scala_2.12
+    hostname: taskmanager
+    container_name: luftdaten_taskmanager
+    depends_on:
+      - jobmanager
+    environment:
+      JOB_MANAGER_RPC_ADDRESS: jobmanager
+    command: taskmanager
+    networks:
+      - luftdaten-net
+
+  job-submitter:
+    build:
+      context: ./docker/submitter
+    container_name: luftdaten_job_submitter
+    depends_on:
+      - jobmanager
+      - taskmanager
+    environment:
+      JOB_MANAGER_HOST: jobmanager
+      JOB_MANAGER_REST_PORT: "8081"
+      JOB_JAR: ${JOB_JAR:-/opt/jars/luftdaten-flink-0.1.jar}
+      JOB_CLASS: ${JOB_CLASS:-com.yourname.luftdaten.DailyTemperatureBME280StreamJobDataGen}
+      SOURCE_HOST: datagen
+      SOURCE_PORT: 9090
+      SINK_HOST: rtracker
+      SINK_PORT: 9000
+    volumes:
+      - ./target:/opt/jars:ro
+    networks:
+      - luftdaten-net
+
+networks:
+  luftdaten-net:
+    name: luftdaten-net
+
+
