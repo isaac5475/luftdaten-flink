@@ -1,0 +1,6 @@
+[submodule "infra/datagen_parallel"]
+	path = infra/datagen_parallel
+	url = git@github.com:tekdogan/datagen_parallel.git
+[submodule "infra/latency-tracker"]
+	path = infra/latency-tracker
+	url = git@github.com:tekdogan/latency-tracker.git
