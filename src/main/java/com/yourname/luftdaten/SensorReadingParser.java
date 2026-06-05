@@ -17,7 +17,7 @@ public class SensorReadingParser implements ReadingParser {
         reading.setLon(tryGetDoubleValue(fields, 4));
         Instant timestamp = tryGetInstantValue(fields, 5);
         reading.setTimestamp(timestamp);
-        Integer datagenTimestamp = Optional.ofNullable(tryGetIntegerValue(fields, fields.length - 1)).orElse(0);
+        Long datagenTimestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 1)).orElse(0L);
         reading.setDatagenTimestamp(datagenTimestamp);
         return reading;
     }
@@ -35,6 +35,16 @@ public class SensorReadingParser implements ReadingParser {
         try {
             if (fields.length > idx && !fields[idx].isEmpty()) {
                 return Integer.parseInt(fields[idx]);
+            }
+        } catch (NumberFormatException ignore) {
+        }
+        return null;
+    }
+
+    protected static Long tryGetLongValue(String[] fields, int idx) {
+        try {
+            if (fields.length > idx && !fields[idx].isEmpty()) {
+                return Long.parseLong(fields[idx]);
             }
         } catch (NumberFormatException ignore) {
         }

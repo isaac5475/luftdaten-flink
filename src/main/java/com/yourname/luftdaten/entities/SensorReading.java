@@ -19,6 +19,7 @@ public class SensorReading {
         setLat(sensorReading.getLat());
         setLon(sensorReading.getLon());
         setTimestamp(sensorReading.getTimestamp());
+        setDatagenTimestamp(sensorReading.getDatagenTimestamp());
     }
 
     public Integer getSensor_id() {

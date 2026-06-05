@@ -13,7 +13,7 @@ public class AggregateAverageTempAndMinDatagenTimestamp implements AggregateFunc
     public static class AvgAccumulator {
         public double sum = 0.0;
         public long count = 0L;
-        public long minDatagenTimestamp = 0L;
+        public long minDatagenTimestamp = Long.MAX_VALUE;
     }
 
     @Override

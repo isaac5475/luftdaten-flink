@@ -4,7 +4,7 @@ import com.yourname.luftdaten.entities.SensorReading;
 
 public interface ReadingParser {
 
-    String FIELD_SEPARATOR = ";";
+    String FIELD_SEPARATOR = ";|,";
 
     static SensorReading parseReading(String row) {
         return null;

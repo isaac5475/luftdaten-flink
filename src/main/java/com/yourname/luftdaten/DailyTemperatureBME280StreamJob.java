@@ -21,6 +21,7 @@ package com.yourname.luftdaten;
 import java.time.Duration;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.connector.file.src.FileSource;
 import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
 import org.apache.flink.core.fs.Path;
@@ -59,11 +60,12 @@ public class DailyTemperatureBME280StreamJob {
                 .map(BME280Parser::parseReading)
                 .filter(reading -> reading.getSensor_id() != null && reading.getTemperature() != null);
         DataStream<BME280Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<BME280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
-        DataStream<String> tempAverageHourly = withTimestamps
+        DataStream<Tuple2<String, Long>> tempAverageHourly = withTimestamps
                 .keyBy(BME280Reading::getSensor_id)
-                .window(TumblingEventTimeWindows.of(Duration.ofDays(1)))
-                .aggregate(new AggregateAverage(), new AverageResultWindowFunction());
-        tempAverageHourly.print();
+                .window(TumblingEventTimeWindows.of(Duration.ofMinutes(1)))
+                .aggregate(new AggregateAverageTempAndMinDatagenTimestamp(), new AverageResultWithTimestampWindowFunction());
+        tempAverageHourly.map(s -> String.format("%s%s%s\n", s.f0, ",", s.f1))
+                .print();
 
         // Execute program, beginning computation.
         env.execute("BME 280 basic parsing, filtering, daily aggregation and printing");
