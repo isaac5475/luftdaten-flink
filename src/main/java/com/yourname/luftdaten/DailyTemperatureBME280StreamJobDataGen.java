@@ -22,9 +22,7 @@ import java.time.Duration;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.connector.file.src.FileSource;
-import org.apache.flink.connector.file.src.reader.TextLineInputFormat;
-import org.apache.flink.core.fs.Path;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
@@ -62,14 +60,14 @@ public class DailyTemperatureBME280StreamJobDataGen {
                 .map(BME280Parser::parseReading)
                 .filter(reading -> reading.getSensor_id() != null && reading.getTemperature() != null);
         DataStream<BME280Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<BME280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
-        DataStream<String> tempAverageHourly = withTimestamps
+        DataStream<Tuple2<String, Long>> tempAverageHourly = withTimestamps
                 .keyBy(BME280Reading::getSensor_id)
                 .window(TumblingEventTimeWindows.of(Duration.ofMinutes(1)))
-                .aggregate(new AggregateAverage(), new AverageResultWindowFunction());
-        tempAverageHourly.map(s -> s + "\n")
+                .aggregate(new AggregateAverageTempAndMinDatagenTimestamp(), new AverageResultWithTimestampWindowFunction());
+        tempAverageHourly.map(s -> String.format("%s%s%s\n", s.f0, ";", s.f1))
                 .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
-    // Execute program, beginning computation.
+        // Execute program, beginning computation.
         env.execute("Daily Temperature from BME280 sensors with data from socket and writing results to socket");
     }
 }

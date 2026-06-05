@@ -3,6 +3,7 @@ package com.yourname.luftdaten;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Optional;
 
 import com.yourname.luftdaten.entities.SensorReading;
 
@@ -16,6 +17,8 @@ public class SensorReadingParser implements ReadingParser {
         reading.setLon(tryGetDoubleValue(fields, 4));
         Instant timestamp = tryGetInstantValue(fields, 5);
         reading.setTimestamp(timestamp);
+        Integer datagenTimestamp = Optional.ofNullable(tryGetIntegerValue(fields, fields.length - 1)).orElse(0);
+        reading.setDatagenTimestamp(datagenTimestamp);
         return reading;
     }
 

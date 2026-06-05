@@ -7,6 +7,7 @@ public class SensorReading {
     private Integer location;
     private Double lat, lon;
     private Instant timestamp;
+    private long datagenTimestamp;
 
     public SensorReading() {
     }
@@ -58,5 +59,13 @@ public class SensorReading {
 
     public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
+    }
+
+    public long getDatagenTimestamp() {
+        return datagenTimestamp;
+    }
+
+    public void setDatagenTimestamp(long datagenTimestamp) {
+        this.datagenTimestamp = datagenTimestamp;
     }
 }
