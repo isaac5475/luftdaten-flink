@@ -3,4 +3,5 @@ target/
 *.class
 *.jar
 .DS_Store
+.env
 data

@@ -1,0 +1,12 @@
+connection:
+  type: tcp
+  host: 0.0.0.0
+  port: 9000
+  backlog: 64
+  read_buffer_bytes: 4096
+
+processing:
+  latency_worker_threads: 16
+  spool_file: latency-logs/timestamped_tuples.log
+  latency_output_file: latency-logs/latency_output.log
+  print_to_terminal: true

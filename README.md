@@ -1,13 +1,40 @@
 # Luftdaten Flink container setup
 
-This repository now includes a Docker Compose setup that starts a local Flink cluster and auto-submits `DailyTemperatureBME280StreamJobDataGen` when the stack comes up.
+This repository provides a Docker Compose environment for an end-to-end Luftdaten stream processing demo.
 
-## What it does
+It uses two git submodules:
 
-- starts a Flink JobManager and TaskManager
-- waits for optional socket source and sink containers to be reachable
-- submits the job automatically on `docker compose up`
-- mounts the Maven build output from `./target`
+- `infra/datagen_parallel` for data generation
+- `infra/latency-tracker` for latency tracking
+
+Both submodules are wired into the top-level Compose stack and use the configuration files under `./config`.
+
+## End-to-end flow
+
+1. `datagen` reads `config/datagen/config.yaml`
+2. The generated records are annotated with a timestamp
+3. Flink ingests and processes the stream
+4. The result is written to the latency tracker sink
+5. `rtracker` calculates the latency and writes the output to `./latency-logs`
+
+The relevant config files are:
+
+- `config/datagen/config.yaml`
+- `config/datagen/config.mqtt.yaml`
+- `config/datagen/config.kafka.yaml`
+- `config/rtracker/rtracker-config.yaml`
+
+## Setup
+
+Before starting the stack, create a `.env` file in the repository root.
+
+Use `.env.example` as the starting point:
+
+```bash
+cp .env.example .env
+```
+
+Adjust the values in `.env` if needed for your local setup.
 
 ## Build the job jar
 
@@ -23,50 +50,25 @@ The compose setup expects this jar by default:
 
 If your build creates a different jar name, update `JOB_JAR` in `docker-compose.yml`.
 
-## Start the Flink cluster and auto-submit the job
+## Start the stack
 
 ```bash
 docker compose up --build
 ```
 
-The submitter container uses these defaults:
+The Compose stack starts:
 
-- `SOURCE_HOST=source`
-- `SOURCE_PORT=9000`
-- `SINK_HOST=sink`
-- `SINK_PORT=9001`
+- Flink JobManager and TaskManager
+- `datagen` for stream input
+- `rtracker` for latency measurement
+- `job-submitter`, which waits for the services to be ready and submits the job automatically on startup
 
-You can override them when starting Compose:
+## Notes on configuration
 
-```bash
-SOURCE_HOST=my-source SOURCE_PORT=9000 SINK_HOST=my-sink SINK_PORT=9001 docker compose up --build
-```
-
-## Using separate source and sink containers
-
-Attach your source and sink containers to the shared Docker network created by Compose:
-
-- network name: `luftdaten-net`
-
-Example pattern:
-
-```bash
-docker run -d --name source --network luftdaten-net ...
-docker run -d --name sink --network luftdaten-net ...
-```
-
-For a quick local test, you can use `socat` containers that talk over TCP:
-
-```bash
-docker run -d --name source --network luftdaten-net \
-  -v "$(pwd)/src/main/resources/2020-01_bme280.csv:/data.csv:ro" \
-  alpine:3.20 sh -c 'apk add --no-cache socat >/dev/null && while true; do socat -u FILE:/data.csv TCP-LISTEN:9000,reuseaddr,fork; sleep 1; done'
-
-docker run -d --name sink --network luftdaten-net \
-  alpine:3.20 sh -c 'apk add --no-cache socat >/dev/null && socat -u TCP-LISTEN:9001,reuseaddr,fork -'
-```
-
-As long as the containers are named or reachable as `source` and `sink` (or you override the env vars above), the submitter will wait for both sockets before submitting the job.
+- The job submitter uses the `.env` values for source and sink host/port settings.
+- `datagen` is exposed on the source port defined in `.env`.
+- `rtracker` listens on the sink port defined in `.env` and writes results to `./latency-logs`.
+- If you switch the data source or broker backend, use the matching file in `config/datagen/`.
 
 ## Flink UI
 
@@ -79,6 +81,3 @@ When the stack is running, open:
 ```bash
 docker compose down
 ```
-
-
-

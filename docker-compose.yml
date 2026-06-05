@@ -1,3 +1,7 @@
+networks:
+  luftdaten-net:
+    name: luftdaten-net
+
 services:
   jobmanager:
     image: flink:1.19.0-scala_2.12
@@ -30,22 +34,65 @@ services:
     depends_on:
       - jobmanager
       - taskmanager
+      - datagen
+      - rtracker
     environment:
       JOB_MANAGER_HOST: jobmanager
       JOB_MANAGER_REST_PORT: "8081"
       JOB_JAR: ${JOB_JAR:-/opt/jars/luftdaten-flink-0.1.jar}
       JOB_CLASS: ${JOB_CLASS:-com.yourname.luftdaten.DailyTemperatureBME280StreamJobDataGen}
-      SOURCE_HOST: datagen
-      SOURCE_PORT: 9090
-      SINK_HOST: rtracker
-      SINK_PORT: 9000
+      SOURCE_HOST: ${SOURCE_HOST}
+      SOURCE_PORT: ${SOURCE_PORT:-9090}
+      SINK_HOST: ${SINK_HOST}
+      SINK_PORT: ${SINK_PORT}
     volumes:
       - ./target:/opt/jars:ro
     networks:
       - luftdaten-net
 
-networks:
-  luftdaten-net:
-    name: luftdaten-net
+
+  datagen:  # This service is defined in infra/datagen_parallel/docker/compose.yaml, but we need to include it here to connect it to the same network as the Flink services.
+    extends:
+      file: ./infra/datagen_parallel/docker/compose.yaml
+      service: datagen
+    ports:
+      - "${SOURCE_PORT:-9090}:9090"
+    volumes:
+      # Mount the datagen-specific config files into /app/config so the
+      # datagen binary sees real files (not host directories).
+      - ./config/datagen/config.yaml:/app/config/config.yaml:ro
+      - ./config/datagen/config.mqtt.yaml:/app/config/config.mqtt.yaml:ro
+      - ./config/datagen/config.kafka.yaml:/app/config/config.kafka.yaml:ro
+      - ./data:/app/data:ro
+    networks:
+      - luftdaten-net
+
+  mosquitto:
+    extends:
+      file: ./infra/datagen_parallel/docker/compose.yaml
+      service: mosquitto
+    networks:
+      - luftdaten-net
+
+  kafka:
+    extends:
+      file: ./infra/datagen_parallel/docker/compose.yaml
+      service: kafka
+    networks:
+      - luftdaten-net
+
+  rtracker:
+    build: ./infra/latency-tracker/
+    container_name: rtracker
+    ports:
+      - "${SINK_PORT}:9000"
+    volumes:
+         - ./latency-logs:/app/latency-logs
+         - ./config/rtracker/rtracker-config.yaml:/app/config.yaml
+    command: ["./config.yaml"]
+    networks:
+      - luftdaten-net
+    restart: unless-stopped
+
 
 
