@@ -81,3 +81,19 @@ When the stack is running, open:
 ```bash
 docker compose down
 ```
+
+
+## Generate latency plot
+After stopping the stack, you can generate a latency plot from the logs:
+
+### Create virtual environment and install dependencies
+
+```bash
+python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+```
+
+### Run the plotting script
+
+```bash
+python3 ./latency-plotter.py latency-logs/latency_output.log latency.png
+```
