@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public class SensorReading {
     private Integer sensor_id;
+    private String sensorType;
     private Integer location;
     private Double lat, lon;
     private Instant timestamp;
@@ -15,6 +16,7 @@ public class SensorReading {
     public SensorReading(SensorReading sensorReading) {
         this();
         setSensor_id(sensorReading.getSensor_id());
+        setSensorType(sensorReading.getSensorType());
         setLocation(sensorReading.getLocation());
         setLat(sensorReading.getLat());
         setLon(sensorReading.getLon());
@@ -46,6 +48,12 @@ public class SensorReading {
         this.lat = lat;
     }
 
+    @Override
+    public String toString() {
+        return String.format("%s;%s;%s;%s;%s;%s;%s",
+                sensor_id, sensorType, location, lat, lon, timestamp, datagenTimestamp);
+    }
+
     public Double getLon() {
         return lon;
     }
@@ -68,5 +76,13 @@ public class SensorReading {
 
     public void setDatagenTimestamp(long datagenTimestamp) {
         this.datagenTimestamp = datagenTimestamp;
+    }
+
+    public String getSensorType() {
+        return sensorType;
+    }
+
+    public void setSensorType(String sensorType) {
+        this.sensorType = sensorType;
     }
 }

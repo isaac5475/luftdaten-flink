@@ -12,6 +12,7 @@ public class SensorReadingParser implements ReadingParser {
         String[] fields = row.split(FIELD_SEPARATOR);
         SensorReading reading = new SensorReading();
         reading.setSensor_id(tryGetIntegerValue(fields, 0));
+        reading.setSensorType(tryGetStringValue(fields, 1));
         reading.setLocation(tryGetIntegerValue(fields, 2));
         reading.setLat(tryGetDoubleValue(fields, 3));
         reading.setLon(tryGetDoubleValue(fields, 4));
@@ -29,6 +30,13 @@ public class SensorReadingParser implements ReadingParser {
         } else {
             return null;
         }
+    }
+
+    protected static String tryGetStringValue(String[] fields, int idx) {
+            if (fields.length > idx && !fields[idx].isEmpty()) {
+                return fields[idx];
+            }
+        return null;
     }
 
     protected static Integer tryGetIntegerValue(String[] fields, int idx) {

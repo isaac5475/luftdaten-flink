@@ -50,4 +50,10 @@ public class BMP280Reading extends SensorReading {
     public void setPressure(Double pressure) {
         this.pressure = pressure;
     }
+
+    @Override
+    public String toString() {
+        return String.format("%s;%s;%s;%s;%s;%s;%s;%s;%s;%s",
+                getSensor_id(), getSensorType(), getLocation(), getLat(), getLon(), getTimestamp(), getPressure(), getAltitude(), getPressureAtSeaLevel(), getTemperature());
+    }
 }
