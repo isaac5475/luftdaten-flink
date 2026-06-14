@@ -63,7 +63,7 @@ public class DailyTemperatureBME280StreamJobDataGen {
         DataStream<Tuple2<String, Long>> tempAverageHourly = withTimestamps
                 .keyBy(BME280Reading::getSensor_id)
                 .window(TumblingEventTimeWindows.of(Duration.ofMinutes(1)))
-                .aggregate(new AggregateAverageTempAndMinDatagenTimestamp(), new AverageResultWithTimestampWindowFunction());
+                .aggregate(new AggregateAverageTempAndMaxDatagenTimestamp(), new AverageResultWithTimestampWindowFunction());
         tempAverageHourly.map(s -> String.format("%s%s%s\n", s.f0, ",", s.f1))
                 .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
