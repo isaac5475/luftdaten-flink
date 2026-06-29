@@ -44,7 +44,7 @@ def load(path: str):
     return timestamps, latencies
 
 
-def plot(timestamps, latencies, output_path: str = None):
+def plot(timestamps, latencies, p50, p90, output_path: str = None):
     # Normalise timestamps so x-axis starts at 0 seconds
     t0 = timestamps[0]
     x = [(t - t0) / 1000.0 for t in timestamps]
@@ -52,15 +52,9 @@ def plot(timestamps, latencies, output_path: str = None):
     fig, ax = plt.subplots(figsize=(12, 5))
     ax.plot(x, latencies, linewidth=0.8, alpha=0.8, label="latency")
 
-    # Rolling average (window = 50 tuples)
-    window = 50
-    if len(latencies) >= window:
-        rolling = [
-            sum(latencies[i:i + window]) / window
-            for i in range(len(latencies) - window + 1)
-        ]
-        ax.plot(x[window - 1:], rolling, linewidth=1.5,
-                color="red", label=f"rolling avg ({window})")
+    # Add horizontal lines for p50 and p90
+    ax.axhline(y=p50, linestyle="--", color="orange", linewidth=1.5, label=f"p50 ({p50} ms)")
+    ax.axhline(y=p90, linestyle="--", color="red", linewidth=1.5, label=f"p90 ({p90} ms)")
 
     ax.set_xlabel("Time since first tuple (s)")
     ax.set_ylabel("Latency (ms)")
@@ -85,9 +79,19 @@ if __name__ == "__main__":
         print("No data parsed — check the log file path and format.")
         sys.exit(1)
 
+    # Calculate percentiles
+    sorted_latencies = sorted(latencies)
+    n = len(sorted_latencies)
+    p50_idx = int(n * 0.50)
+    p90_idx = int(n * 0.90)
+    p50 = sorted_latencies[p50_idx]
+    p90 = sorted_latencies[p90_idx]
+
     print(f"Parsed {len(latencies)} tuples")
     print(f"  min latency : {min(latencies)} ms")
     print(f"  max latency : {max(latencies)} ms")
     print(f"  avg latency : {sum(latencies)/len(latencies):.1f} ms")
+    print(f"  p50 latency : {p50} ms")
+    print(f"  p90 latency : {p90} ms")
 
-    plot(timestamps, latencies, out_file)
+    plot(timestamps, latencies, p50, p90, out_file)

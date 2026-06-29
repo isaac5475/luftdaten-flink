@@ -95,5 +95,10 @@ python3 -m venv venv && source venv/bin/activate && pip install -r requirements.
 ### Run the plotting script
 
 ```bash
-python3 ./latency-plotter.py latency-logs/latency_output.log latency.png
+python3 ./latency-plotter.py latency-logs/latency_output.log plots/latency_plot.png
+```
+
+### One liner: Deploy the system, start the workload, wait for 60s and generate the plots
+```bash
+docker compose up -d && sleep 60 && docker compose down && python3 ./latency-plotter.py latency-logs/latency_output.log plots/latency-plot.png 
 ```
