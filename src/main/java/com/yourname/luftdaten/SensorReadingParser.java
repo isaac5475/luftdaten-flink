@@ -25,8 +25,7 @@ public class SensorReadingParser implements ReadingParser {
 
     private static Instant tryGetInstantValue(String[] fields, int idx) {
         if (fields.length > idx && !fields[idx].isEmpty()) {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-            return LocalDateTime.parse(fields[idx], formatter).toInstant(java.time.ZoneOffset.UTC);
+            return Instant.parse(fields[idx]);
         } else {
             return null;
         }
