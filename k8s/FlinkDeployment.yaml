@@ -1,0 +1,43 @@
+apiVersion: flink.apache.org/v1beta1
+kind: FlinkDeployment
+metadata:
+  name: luftdaten-job
+spec:
+  image: luftdaten-flink:1.0
+
+  flinkVersion: v1_19
+
+  serviceAccount: flink
+
+  jobManager:
+    resource:
+      memory: "2048m"
+      cpu: 1
+
+  taskManager:
+    resource:
+      memory: "2048m"
+      cpu: 1
+
+  job:
+    jarURI: local:///opt/flink/usrlib/luftdaten-flink-0.1.jar
+    args:
+      - "localhost"
+      - "9090"
+      - "localhost"
+      - "9000"
+    parallelism: 2
+    upgradeMode: stateless
+
+  flinkConfiguration:
+    execution.checkpointing.interval: "10s"
+    state.backend: hashmap
+
+    job.autoscaler.enabled: "true"
+    job.autoscaler.scaling.enabled: "true"
+
+    # target utilization
+    job.autoscaler.target.utilization: "0.7"
+
+    # stabilize scaling decisions
+    job.autoscaler.stabilization.interval: "60s"
