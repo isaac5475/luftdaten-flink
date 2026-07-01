@@ -22,9 +22,9 @@ spec:
   job:
     jarURI: local:///opt/flink/usrlib/luftdaten-flink-0.1.jar
     args:
-      - "localhost"
+      - "datagen"
       - "9090"
-      - "localhost"
+      - "rtracker"
       - "9000"
     parallelism: 2
     upgradeMode: stateless

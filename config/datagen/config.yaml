@@ -1,15 +1,15 @@
-data_rate: 10
+data_rate: 100
 period: 1000
 chunk_size: 1000
 
 pattern:
-  - type: uniform
-  #- fraction: 0.5
-  #- distribution: 0.5
+  - type: burst
+  - fraction: 0.7
+  - distribution: 0.3
 
 data_source:
   type: "csv"
-  file: "data/2020-01-01_bme280_sensor_141.csv"
+  file: "data/2020-01-01_bme280_sensor_141_datagen_comma_sep_parsed_timestamp.csv"
   #type: "image_folder"
   #file: "/app/data/img"
   #encoding: "base64"

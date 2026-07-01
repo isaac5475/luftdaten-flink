@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rtracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rtracker
+  template:
+    metadata:
+      labels:
+        app: rtracker
+    spec:
+      containers:
+        - name: rtracker
+          image: rtracker:local
+          ports:
+            - containerPort: 9000
+          volumeMounts:
+            - mountPath: /app/config
+              name: config
+
+            - mountPath: /app/latency-logs
+              name: data
+      volumes:
+        - name: config
+          configMap:
+            name: rtracker-config
+
+        - name: data
+          hostPath:
+            path: /home/murat/BA/luftdaten-flink/latency-logs
+            type: DirectoryOrCreate
