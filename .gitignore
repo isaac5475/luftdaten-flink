@@ -7,3 +7,9 @@ target/
 .env
 data
 ./latency-logs
+/venv/
+/lib64/
+tmp
+bin
+lib64
+lib
