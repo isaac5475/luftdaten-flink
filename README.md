@@ -90,15 +90,18 @@ After stopping the stack, you can generate a latency plot from the logs:
 
 ```bash
 python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 ```
 
 ### Run the plotting script
 
 ```bash
-python3 ./latency-plotter.py latency-logs/latency_output.log plots/latency_plot.png
+python3 ./latency-plotter.py \
+    latency-logs/latency_output.log \
+    "plots/latency_plot_${TIMESTAMP}.png"
 ```
 
-### One liner: Deploy the system, start the workload, wait for 60s and generate the plots
+### Run the script to start the stack, wait for 60 seconds, stop the stack, and generate the latency plot
 ```bash
-docker compose up -d && sleep 60 && docker compose down && python3 ./latency-plotter.py latency-logs/latency_output.log plots/latency-plot.png 
+/bin/bash /home/murat/BA/luftdaten-flink/run.sh
 ```

@@ -1,0 +1,19 @@
+apiVersion: v1
+data:
+  rtracker-config.yaml: |
+    connection:
+      type: tcp
+      host: 0.0.0.0
+      port: 9000
+      backlog: 64
+      read_buffer_bytes: 4096
+
+    processing:
+      latency_worker_threads: 16
+      spool_file: /app/latency-logs/timestamped_tuples.log
+      latency_output_file: /app/latency-logs/latency_output.log
+      print_to_terminal: true
+kind: ConfigMap
+metadata:
+  name: rtracker-config
+  namespace: default

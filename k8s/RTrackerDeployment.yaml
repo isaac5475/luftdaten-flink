@@ -18,7 +18,8 @@ spec:
           ports:
             - containerPort: 9000
           volumeMounts:
-            - mountPath: /app/config
+            - mountPath: /app/config.yaml
+              subPath: rtracker-config.yaml
               name: config
 
             - mountPath: /app/latency-logs
