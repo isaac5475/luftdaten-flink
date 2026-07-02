@@ -1,5 +1,4 @@
 target/
-.idea/
 *.class
 *.jar
 *.log
