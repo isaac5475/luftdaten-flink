@@ -4,7 +4,7 @@ target/
 *.log
 .DS_Store
 .env
-data
+data/
 ./latency-logs
 /venv/
 /lib64/
