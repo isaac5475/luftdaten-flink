@@ -3,6 +3,7 @@ package com.yourname.luftdaten;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Optional;
 
 import com.yourname.luftdaten.entities.SensorReading;
@@ -24,10 +25,19 @@ public class SensorReadingParser implements ReadingParser {
     }
 
     private static Instant tryGetInstantValue(String[] fields, int idx) {
-        if (fields.length > idx && !fields[idx].isEmpty()) {
-            return Instant.parse(fields[idx]);
-        } else {
+        if (fields.length <= idx || fields[idx].isEmpty()) {
             return null;
+        }
+        try {
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
+            return LocalDateTime.parse(fields[idx], formatter).toInstant(java.time.ZoneOffset.UTC);
+        } catch (DateTimeParseException e) {
+            try {
+                return Instant.parse(fields[idx]);
+            } catch (DateTimeParseException ex) {
+                System.err.println("Could not parse timestamp: '" + fields[idx] + "'");
+                return null;
+            }
         }
     }
 

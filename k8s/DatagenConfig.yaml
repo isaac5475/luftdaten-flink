@@ -84,7 +84,7 @@ data:
 
     data_source:
       type: "csv"
-      file: "data/2020-01-01_bme280_sensor_141_datagen_comma_sep_parsed_timestamp.csv"
+      file: "data/2020-01_bme280_trimmed.csv"
       #type: "image_folder"
       #file: "/app/data/img"
       #encoding: "base64"
@@ -113,8 +113,5 @@ data:
       stochastic: true
 kind: ConfigMap
 metadata:
-  creationTimestamp: "2026-07-01T10:54:14Z"
   name: datagen-config
   namespace: default
-  resourceVersion: "7748"
-  uid: facc5b81-0595-4569-8da9-e97fb84b34af

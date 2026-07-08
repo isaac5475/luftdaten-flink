@@ -30,5 +30,5 @@ spec:
 
         - name: data
           hostPath:
-            path: /data
+            path: /home/murat/BA/datasets/
             type: DirectoryOrCreate
