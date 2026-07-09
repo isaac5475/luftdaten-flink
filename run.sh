@@ -48,6 +48,9 @@ kubectl apply -f k8s/DatagenService.yaml
 kubectl apply -f k8s/RTrackerDeployment.yaml
 kubectl apply -f k8s/RTrackerService.yaml
 
+kubectl rollout restart deployment/datagen
+kubectl rollout restart deployment/rtracker
+
 kubectl rollout status deployment/datagen
 kubectl rollout status deployment/rtracker
 
