@@ -3,6 +3,7 @@ package com.yourname.luftdaten;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.ListState;
@@ -35,6 +36,6 @@ public class BatchTimestampSlidingWindow extends org.apache.flink.streaming.api.
         }
         newBatches.add(Tuple2.of(value, currentWatermark));
         batchState.update(newBatches);
-        out.collect(newBatches.stream().map(t -> t.f0).toList());
+        out.collect(newBatches.stream().map(t -> t.f0).collect(Collectors.toList()));
     }
 }

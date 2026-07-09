@@ -7,22 +7,16 @@ import com.yourname.luftdaten.entities.BME280Reading;
 /**
  * AggregateAverage that consumes BME280Reading and produces the average temperature (Double).
  */
-public class AggregateAverageTempAndMaxDatagenTimestamp implements AggregateFunction<BME280Reading, AggregateAverageTempAndMaxDatagenTimestamp.AvgAccumulator, Tuple2<Double, Long>> {
+public class AggregateAverageTempAndMaxDatagenTimestamp implements AggregateFunction<BME280Reading, AvgAccumulatorMaxDatagenTimestamp, Tuple2<Double, Long>> {
 
-    // nested static accumulator class (allowed because it's nested)
-    public static class AvgAccumulator {
-        public double sum = 0.0;
-        public long count = 0L;
-        public long maxDatagenTimestamp = Long.MIN_VALUE;
+
+    @Override
+    public AvgAccumulatorMaxDatagenTimestamp createAccumulator() {
+        return new AvgAccumulatorMaxDatagenTimestamp();
     }
 
     @Override
-    public AvgAccumulator createAccumulator() {
-        return new AvgAccumulator();
-    }
-
-    @Override
-    public AvgAccumulator add(BME280Reading value, AvgAccumulator acc) {
+    public AvgAccumulatorMaxDatagenTimestamp add(BME280Reading value, AvgAccumulatorMaxDatagenTimestamp acc) {
         if (value == null) {
             return acc;
         }
@@ -36,12 +30,12 @@ public class AggregateAverageTempAndMaxDatagenTimestamp implements AggregateFunc
     }
 
     @Override
-    public Tuple2<Double, Long> getResult(AvgAccumulator acc) {
+    public Tuple2<Double, Long> getResult(AvgAccumulatorMaxDatagenTimestamp acc) {
         return new Tuple2<>(acc.count == 0 ? Double.NaN : acc.sum / acc.count, acc.maxDatagenTimestamp);
     }
 
     @Override
-    public AvgAccumulator merge(AvgAccumulator a, AvgAccumulator b) {
+    public AvgAccumulatorMaxDatagenTimestamp merge(AvgAccumulatorMaxDatagenTimestamp a, AvgAccumulatorMaxDatagenTimestamp b) {
         a.sum += b.sum;
         a.count += b.count;
         a.maxDatagenTimestamp = Math.max(a.maxDatagenTimestamp, b.maxDatagenTimestamp);
