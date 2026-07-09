@@ -96,7 +96,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 ### Run the plotting script
 
 ```bash
-python3 ./latency-plotter.py \
+python3 ./latency-plotter.py --summary \
     latency-logs/latency_output.log \
     "plots/latency_plot_${TIMESTAMP}.png"
 ```
