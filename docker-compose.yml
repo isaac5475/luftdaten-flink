@@ -15,7 +15,7 @@ services:
       - ./config/datagen/config.yaml:/app/config/config.yaml:ro
       - ./config/datagen/config.mqtt.yaml:/app/config/config.mqtt.yaml:ro
       - ./config/datagen/config.kafka.yaml:/app/config/config.kafka.yaml:ro
-      - ./data:/app/data:ro
+      - /home/murat/BA/datasets:/app/data:ro
     networks:
       - luftdaten-net
 

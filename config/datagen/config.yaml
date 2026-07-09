@@ -3,13 +3,13 @@ period: 1000
 chunk_size: 1000
 
 pattern:
-  - type: burst
-  - fraction: 0.7
-  - distribution: 0.3
+  - type: uniform
+#  - fraction: 0.7
+#  - distribution: 0.3
 
 data_source:
   type: "csv"
-  file: "data/2020-01-01_bme280_sensor_141_datagen_comma_sep_parsed_timestamp.csv"
+  file: "data/2021-01-01_sps30_sensor_43485.csv"
   #type: "image_folder"
   #file: "/app/data/img"
   #encoding: "base64"
