@@ -6,10 +6,13 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
 import com.yourname.luftdaten.entities.SPS30Reading;
 
-public class TumblingPM25SPS30 {
+public class SlidingWTSSPS30 {
+
+    private static final double THRESHOLD = 0.5;
+
     public static void main(String[] args) throws Exception {
         // Sets up the execution environment, which is the main entry point
         // to building Flink applications.
@@ -28,14 +31,17 @@ public class TumblingPM25SPS30 {
         DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null);
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
-        withTimestamps.keyBy(SPS30Reading::getSensor_id).window(TumblingEventTimeWindows.of(Duration.ofMinutes(1))).aggregate(new AverageProcessingWithDatagenTimestampFunction<SPS30Reading>() {
+        withTimestamps.keyBy(SPS30Reading::getSensor_id).window(SlidingEventTimeWindows.of(Duration.ofMinutes(10), Duration.ofMinutes(1))).aggregate(new AverageProcessingWithDatagenTimestampFunction<>() {
                     @Override
                     Double getValue(SPS30Reading value) {
-                        return value.getP2();
+                        double ratio = value.getTS();
+                        return value.getP1() == 0 ? Double.NaN : ratio;
                     }
-                }).map(r -> String.format("Average PM2.5: %.2f,%d\n", r.f0, r.f1))
-        .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
+                }).filter(r -> r.f0 < THRESHOLD).map(r -> String.format("TS: %.2f,%d", r.f0, r.f1))
+//                .print();
+                .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
+
         // Execute program, beginning computation.
-        env.execute("Tumbling window over seconds to compute average PM2 count for SPS30 readings and writing results to socket");
+        env.execute("Sliding window (1hr, 10min) to find spikes (3 times of window's average) of PM2 levels for SPS30 readings and writing results to socket");
     }
 }
