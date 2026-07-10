@@ -38,7 +38,6 @@ public class SlidingWTSSPS30 {
                         return value.getP1() == 0 ? Double.NaN : ratio;
                     }
                 }).filter(r -> r.f0 < THRESHOLD).map(r -> String.format("TS: %.2f,%d", r.f0, r.f1))
-//                .print();
                 .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
         // Execute program, beginning computation.

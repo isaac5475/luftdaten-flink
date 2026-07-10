@@ -35,6 +35,7 @@ public class TumblingPM25SPS30 {
                     }
                 }).map(r -> String.format("Average PM2.5: %.2f,%d\n", r.f0, r.f1))
         .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
+
         // Execute program, beginning computation.
         env.execute("Tumbling window over seconds to compute average PM2 count for SPS30 readings and writing results to socket");
     }

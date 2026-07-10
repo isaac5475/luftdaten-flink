@@ -53,8 +53,7 @@ public class SlidingWPM2AlertSPS30 {
                     }
                 })
                 .map(r -> String.format("Sensor: %d, Avg: %.2f, Alerts(%.2f),%d\n", r.f1.getSensorId(), r.f0, r.f1.getP2(), r.f1.getDatagen_timestamp()))
-                        .print();
-//                .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
+                .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
         // Execute program, beginning computation.
         env.execute("Sliding window (1hr, 10min) to find spikes (3 times of window's average) of PM2 levels for SPS30 readings and writing results to socket");
     }
