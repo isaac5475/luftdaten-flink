@@ -11,7 +11,7 @@ import com.yourname.luftdaten.AverageProcessingWithDatagenTimestampFunction;
 import com.yourname.luftdaten.SPS30Parser;
 import com.yourname.luftdaten.entities.SPS30Reading;
 
-public class TumblingPM25SPS30 {
+public class TumblingWindowMapSPS30 {
     public static void main(String[] args) throws Exception {
         // Sets up the execution environment, which is the main entry point
         // to building Flink applications.

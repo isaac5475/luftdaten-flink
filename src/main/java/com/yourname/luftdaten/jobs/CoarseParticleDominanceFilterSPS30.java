@@ -31,17 +31,16 @@ public class CoarseParticleDominanceFilterSPS30 {
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
         withTimestamps.filter(reading -> {
-                    double ratio = reading.getP0() / reading.getP1();
                     if (reading.getP1() == 0) {
                         return false;
                     }
+                    double ratio = reading.getP0() / reading.getP1();
                     return ratio < THRESHOLD;
                 })
-                .map(reading -> String.format("Sensor %d, P1: %.2f, P2: %.2f, P2/P1: %.2f,%d\n", reading.getSensor_id(), reading.getP1(), reading.getP2(), reading.getP2() / reading.getP1(), reading.getDatagenTimestamp()))
-//                .print();
+                .map(reading -> String.format("Sensor %d, P0: %.2f, P1: %.2f, P0/P1: %.2f,%d\n", reading.getSensor_id(), reading.getP0(), reading.getP1(), reading.getP0() / reading.getP1(), reading.getDatagenTimestamp()))
                 .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
         // Execute program, beginning computation.
-        env.execute("Coarse Particle Dominance filter outputs SPS30 readings so that P1 / P0 is less than 0.1 and writes results to socket");
+        env.execute("Coarse Particle Dominance filter outputs SPS30 readings so that P0 / P1 is less than 0.9 and writes results to socket");
     }
 }
