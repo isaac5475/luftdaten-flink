@@ -1,18 +1,17 @@
+package com.yourname.luftdaten.jobs;
 
-package com.yourname.luftdaten;
+import java.time.Duration;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import com.yourname.luftdaten.AverageProcessingWithDatagenTimestampFunction;
+import com.yourname.luftdaten.SPS30Parser;
 import com.yourname.luftdaten.entities.SPS30Reading;
 
-public class CoarseParticleDominanceFilterSPS30 {
-
-    private static final double THRESHOLD = 0.9;
-
+public class TumblingPM25SPS30 {
     public static void main(String[] args) throws Exception {
         // Sets up the execution environment, which is the main entry point
         // to building Flink applications.
@@ -31,18 +30,15 @@ public class CoarseParticleDominanceFilterSPS30 {
         DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null);
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
-        withTimestamps.filter(reading -> {
-                    double ratio = reading.getP0() / reading.getP1();
-                    if (reading.getP1() == 0) {
-                        return false;
+        withTimestamps.keyBy(SPS30Reading::getSensor_id).window(TumblingEventTimeWindows.of(Duration.ofMinutes(1))).aggregate(new AverageProcessingWithDatagenTimestampFunction<SPS30Reading>() {
+                    @Override
+                    protected Double getValue(SPS30Reading value) {
+                        return value.getP2();
                     }
-                    return ratio < THRESHOLD;
-                })
-                .map(reading -> String.format("Sensor %d, P1: %.2f, P2: %.2f, P2/P1: %.2f,%d\n", reading.getSensor_id(), reading.getP1(), reading.getP2(), reading.getP2() / reading.getP1(), reading.getDatagenTimestamp()))
-//                .print();
-                .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
+                }).map(r -> String.format("Average PM2.5: %.2f,%d\n", r.f0, r.f1))
+        .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
         // Execute program, beginning computation.
-        env.execute("Coarse Particle Dominance filter outputs SPS30 readings so that P1 / P0 is less than 0.1 and writes results to socket");
+        env.execute("Tumbling window over seconds to compute average PM2 count for SPS30 readings and writing results to socket");
     }
 }

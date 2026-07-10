@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.yourname.luftdaten;
+package com.yourname.luftdaten.jobs;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import com.yourname.luftdaten.BatchSource;
+import com.yourname.luftdaten.PMS7003Parser;
 import com.yourname.luftdaten.entities.Batch;
 import com.yourname.luftdaten.entities.PMS7003Reading;
 

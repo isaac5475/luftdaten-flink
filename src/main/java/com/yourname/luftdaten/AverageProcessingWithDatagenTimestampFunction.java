@@ -6,7 +6,7 @@ import com.yourname.luftdaten.entities.SensorReading;
 
 public abstract class AverageProcessingWithDatagenTimestampFunction<T extends SensorReading> implements AggregateFunction<T, AvgAccumulatorMaxDatagenTimestamp, Tuple2<Double, Long>> {
 
-    abstract Double getValue(T value);
+    protected abstract Double getValue(T value);
 
     @Override
     public AvgAccumulatorMaxDatagenTimestamp createAccumulator() {

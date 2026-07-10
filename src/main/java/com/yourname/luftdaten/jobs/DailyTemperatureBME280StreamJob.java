@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.yourname.luftdaten;
+package com.yourname.luftdaten.jobs;
 
 import java.time.Duration;
 
@@ -28,6 +28,9 @@ import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import com.yourname.luftdaten.AggregateAverageTempAndMaxDatagenTimestamp;
+import com.yourname.luftdaten.AverageResultWithTimestampWindowFunction;
+import com.yourname.luftdaten.BME280Parser;
 import com.yourname.luftdaten.entities.BME280Reading;
 
 /**

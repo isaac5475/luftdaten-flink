@@ -1,15 +1,17 @@
 
-package com.yourname.luftdaten;
+package com.yourname.luftdaten.jobs;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import com.yourname.luftdaten.SPS30Parser;
 import com.yourname.luftdaten.entities.SPS30Reading;
 
-public class AQIHazardLevelStatelessFilterSPS30 {
+public class CoarseParticleDominanceFilterSPS30 {
+
+    private static final double THRESHOLD = 0.9;
+
     public static void main(String[] args) throws Exception {
         // Sets up the execution environment, which is the main entry point
         // to building Flink applications.
@@ -28,13 +30,18 @@ public class AQIHazardLevelStatelessFilterSPS30 {
         DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null);
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
-        withTimestamps.map(reading -> Tuple2.of(AQICalculator.aqi(reading.getP1(), reading.getP2()), reading)).returns(TypeInformation.of(new org.apache.flink.api.common.typeinfo.TypeHint<Tuple2<Integer, SPS30Reading>>() {
-                }))
-                .filter(t -> AQICategory.of(t.f0).isAtLeast(AQICategory.MODERATE))
-                .map(reading -> String.format("Category: %s, AQI: %d, P1: %.2f, P2: %.2f, Timestamp: %s,%d\n", AQICategory.of(reading.f0), reading.f0, reading.f1.getP1(), reading.f1.getP2(), reading.f1.getTimestamp().toString(), reading.f1.getDatagenTimestamp()))
+        withTimestamps.filter(reading -> {
+                    double ratio = reading.getP0() / reading.getP1();
+                    if (reading.getP1() == 0) {
+                        return false;
+                    }
+                    return ratio < THRESHOLD;
+                })
+                .map(reading -> String.format("Sensor %d, P1: %.2f, P2: %.2f, P2/P1: %.2f,%d\n", reading.getSensor_id(), reading.getP1(), reading.getP2(), reading.getP2() / reading.getP1(), reading.getDatagenTimestamp()))
+//                .print();
                 .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
         // Execute program, beginning computation.
-        env.execute("Air Quality Index filter and categorisation for SPS30 readings and writing results to socket");
+        env.execute("Coarse Particle Dominance filter outputs SPS30 readings so that P1 / P0 is less than 0.1 and writes results to socket");
     }
 }

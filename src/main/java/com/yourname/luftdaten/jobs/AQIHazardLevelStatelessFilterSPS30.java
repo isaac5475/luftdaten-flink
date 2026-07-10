@@ -1,15 +1,18 @@
-package com.yourname.luftdaten;
 
-import java.time.Duration;
+package com.yourname.luftdaten.jobs;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
+import com.yourname.luftdaten.AQICalculator;
+import com.yourname.luftdaten.AQICategory;
+import com.yourname.luftdaten.SPS30Parser;
 import com.yourname.luftdaten.entities.SPS30Reading;
 
-public class TumblingPM25SPS30 {
+public class AQIHazardLevelStatelessFilterSPS30 {
     public static void main(String[] args) throws Exception {
         // Sets up the execution environment, which is the main entry point
         // to building Flink applications.
@@ -28,15 +31,13 @@ public class TumblingPM25SPS30 {
         DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null);
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
-        withTimestamps.keyBy(SPS30Reading::getSensor_id).window(TumblingEventTimeWindows.of(Duration.ofMinutes(1))).aggregate(new AverageProcessingWithDatagenTimestampFunction<SPS30Reading>() {
-                    @Override
-                    Double getValue(SPS30Reading value) {
-                        return value.getP2();
-                    }
-                }).map(r -> String.format("Average PM2.5: %.2f,%d\n", r.f0, r.f1))
-        .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
+        withTimestamps.map(reading -> Tuple2.of(AQICalculator.aqi(reading.getP1(), reading.getP2()), reading)).returns(TypeInformation.of(new org.apache.flink.api.common.typeinfo.TypeHint<Tuple2<Integer, SPS30Reading>>() {
+                }))
+                .filter(t -> AQICategory.of(t.f0).isAtLeast(AQICategory.MODERATE))
+                .map(reading -> String.format("Category: %s, AQI: %d, P1: %.2f, P2: %.2f, Timestamp: %s,%d\n", AQICategory.of(reading.f0), reading.f0, reading.f1.getP1(), reading.f1.getP2(), reading.f1.getTimestamp().toString(), reading.f1.getDatagenTimestamp()))
+                .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
         // Execute program, beginning computation.
-        env.execute("Tumbling window over seconds to compute average PM2 count for SPS30 readings and writing results to socket");
+        env.execute("Air Quality Index filter and categorisation for SPS30 readings and writing results to socket");
     }
 }
