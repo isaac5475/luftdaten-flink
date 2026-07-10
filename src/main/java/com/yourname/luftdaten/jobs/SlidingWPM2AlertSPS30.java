@@ -1,20 +1,14 @@
 package com.yourname.luftdaten.jobs;
 
 import java.time.Duration;
-import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
-import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.apache.flink.streaming.api.functions.windowing.ProcessWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
-import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.util.Collector;
-import com.yourname.luftdaten.Alert;
+import com.yourname.luftdaten.AverageAndMaxWithDatagenTimestampFunction;
 import com.yourname.luftdaten.SPS30Parser;
 import com.yourname.luftdaten.entities.SPS30Reading;
 
@@ -38,19 +32,26 @@ public class SlidingWPM2AlertSPS30 {
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
         withTimestamps.keyBy(SPS30Reading::getSensor_id).window(SlidingEventTimeWindows.of(Duration.ofHours(1), Duration.ofMinutes(10)))
-                .process(new ProcessWindowFunction<SPS30Reading, Tuple2<Double, Alert>, Integer, TimeWindow>() {
+                .aggregate(new AverageAndMaxWithDatagenTimestampFunction<SPS30Reading>() {
                     @Override
-                    public void process(Integer integer, ProcessWindowFunction<SPS30Reading, Tuple2<Double, Alert>, Integer, TimeWindow>.Context context, Iterable<SPS30Reading> elements, Collector<Tuple2<Double, Alert>> out) {
-                        List<SPS30Reading> list = StreamSupport
-                                .stream(elements.spliterator(), false)
-                                .collect(Collectors.toList());
-
-                        double avg = list.stream().mapToDouble(SPS30Reading::getP2).average().orElse(0);
-                        long maxTimestamp = list.stream().mapToLong(SPS30Reading::getDatagenTimestamp).max().orElse(Long.MIN_VALUE);
-                        list.stream().filter(r -> r.getP2() > 1.5 * avg).map(spike -> new Alert(spike.getSensor_id(), maxTimestamp, spike.getP2())).forEach(a -> out.collect(Tuple2.of(avg, a)));
+                    protected Double getValue(SPS30Reading value) {
+                        return value.getP2();
                     }
                 })
-                .map(r -> String.format("Sensor: %d, Avg: %.2f, Alerts(%.2f),%d\n", r.f1.getSensorId(), r.f0, r.f1.getP2(), r.f1.getDatagen_timestamp()))
+//                .process(new ProcessWindowFunction<SPS30Reading, Tuple2<Double, Alert>, Integer, TimeWindow>() {
+//                    @Override
+//                    public void process(Integer integer, ProcessWindowFunction<SPS30Reading, Tuple2<Double, Alert>, Integer, TimeWindow>.Context context, Iterable<SPS30Reading> elements, Collector<Tuple2<Double, Alert>> out) {
+//                        List<SPS30Reading> list = StreamSupport
+//                                .stream(elements.spliterator(), false)
+//                                .collect(Collectors.toList());
+//
+//                        double avg = list.stream().mapToDouble(SPS30Reading::getP2).average().orElse(0);
+//                        long maxTimestamp = list.stream().mapToLong(SPS30Reading::getDatagenTimestamp).max().orElse(Long.MIN_VALUE);
+//                        list.stream().filter(r -> r.getP2() > 1.5 * avg).map(spike -> new Alert(spike.getSensor_id(), maxTimestamp, spike.getP2())).forEach(a -> out.collect(Tuple2.of(avg, a)));
+//                    }
+//                })
+                .filter(r -> r.f1 > 1.5 * r.f0)
+                .map(r -> String.format("Avg: %.2f, max: %.2f,%d\n", r.f0, r.f1, r.f2))
                 .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
         // Execute program, beginning computation.
         env.execute("Sliding window (1hr, 10min) to find spikes (3 times of window's average) of PM2 levels for SPS30 readings and writing results to socket");
