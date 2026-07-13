@@ -27,10 +27,10 @@ public class TumblingWindowMapSPS30 {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         DataStream<String> stream = env.socketTextStream(sourceHost, sourcePort);
         DataStream<String> filteredLines = stream.filter(line -> !line.startsWith("sensor_id"));
-        DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null);
+        DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP2() != null);
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
-        withTimestamps.keyBy(SPS30Reading::getSensor_id).window(TumblingEventTimeWindows.of(Duration.ofMinutes(1))).aggregate(new AverageProcessingWithDatagenTimestampFunction<SPS30Reading>() {
+        withTimestamps.keyBy(SPS30Reading::getSensor_id).window(TumblingEventTimeWindows.of(Duration.ofMinutes(1))).aggregate(new AverageProcessingWithDatagenTimestampFunction<>() {
                     @Override
                     protected Double getValue(SPS30Reading value) {
                         return value.getP2();

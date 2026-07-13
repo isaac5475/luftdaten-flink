@@ -27,7 +27,7 @@ public class CoarseParticleDominanceFilterSPS30 {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         DataStream<String> stream = env.socketTextStream(sourceHost, sourcePort);
         DataStream<String> filteredLines = stream.filter(line -> !line.startsWith("sensor_id"));
-        DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null);
+        DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null && reading.getP1() != null);
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
         withTimestamps.filter(reading -> {

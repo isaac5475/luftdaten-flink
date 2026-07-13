@@ -28,10 +28,10 @@ public class AQIHazardLevelStatelessFilterSPS30 {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         DataStream<String> stream = env.socketTextStream(sourceHost, sourcePort);
         DataStream<String> filteredLines = stream.filter(line -> !line.startsWith("sensor_id"));
-        DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP0() != null);
+        DataStream<SPS30Reading> correctReadings = filteredLines.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP1() != null && reading.getP2() != null);
         DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
 
-        withTimestamps.map(reading -> Tuple2.of(AQICalculator.aqi(reading.getP1(), reading.getP2()), reading)).returns(TypeInformation.of(new org.apache.flink.api.common.typeinfo.TypeHint<Tuple2<Integer, SPS30Reading>>() {
+        withTimestamps.map(reading -> Tuple2.of(AQICalculator.aqi(reading.getP1(), reading.getP2()), reading)).returns(TypeInformation.of(new org.apache.flink.api.common.typeinfo.TypeHint<>() {
                 }))
                 .filter(t -> AQICategory.of(t.f0).isAtLeast(AQICategory.MODERATE))
                 .map(reading -> String.format("Category: %s, AQI: %d, P1: %.2f, P2: %.2f, Timestamp: %s,%d\n", AQICategory.of(reading.f0), reading.f0, reading.f1.getP1(), reading.f1.getP2(), reading.f1.getTimestamp().toString(), reading.f1.getDatagenTimestamp()))
