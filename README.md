@@ -93,12 +93,18 @@ python3 -m venv venv && source venv/bin/activate && pip install -r requirements.
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 ```
 
+### Download monthly SPS30 readings as CSV files. 
+
+```bash
+python3 fetch_sps30_data_for_month.py <year-month, e.g.: 2021-03>
+```
+
 ### Run the plotting script
 
 ```bash
 python3 ./latency-plotter.py --summary \
     latency-logs/latency_output.log \
-    "plots/latency_plot_${TIMESTAMP}.png"
+    -o "plots/latency_plot_${TIMESTAMP}.png"
 ```
 
 ### Run the script to start the stack, wait for 60 seconds, stop the stack, and generate the latency plot
