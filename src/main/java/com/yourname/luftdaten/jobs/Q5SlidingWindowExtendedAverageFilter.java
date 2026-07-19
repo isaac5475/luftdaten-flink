@@ -5,6 +5,8 @@ import java.time.Duration;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.Tuple5;
+import org.apache.flink.connector.kafka.source.KafkaSource;
+import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
@@ -12,26 +14,35 @@ import com.yourname.luftdaten.CrossSpectrumAggregateFunction;
 import com.yourname.luftdaten.SPS30Parser;
 import com.yourname.luftdaten.entities.SPS30Reading;
 
-public class SlidingWindowExtendedAverageFilter {
+public class Q5SlidingWindowExtendedAverageFilter {
 
-    private static final double P2_THRESHOLD  = 18.0;
-    private static final double N1_THRESHOLD  = 120.0;
+    private static final double P2_THRESHOLD = 18.0;
+    private static final double N1_THRESHOLD = 120.0;
     private static final double N05_THRESHOLD = 140.0;
-    private static final double TS_THRESHOLD  = 0.49;
+    private static final double TS_THRESHOLD = 0.49;
 
     public static void main(String[] args) throws Exception {
         if (args.length < 4) {
-            System.err.println("Usage: CrossSpectrumAnomalySPS30 <srcHost> <srcPort> <sinkHost> <sinkPort>");
+            System.err.println("Usage: DataStreamJob <input kafka host:port> <topic> <host sink> <port sink>");
             return;
         }
 
-        String sourceHost = args[0], sinkHost = args[2];
-        int sourcePort = Integer.parseInt(args[1]), sinkPort = Integer.parseInt(args[3]);
+        String bootstrapServers = args[0];
+        String topic = args[1];
+        String sinkHost = args[2];
+        int sinkPort = Integer.parseInt(args[3]);
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        DataStream<SPS30Reading> withTimestamps = env.socketTextStream(sourceHost, sourcePort)
-                .filter(line -> !line.startsWith("sensor_id"))
+        KafkaSource<String> source = KafkaSource.<String>builder()
+                .setBootstrapServers(bootstrapServers)
+                .setTopics(topic)
+                .setGroupId("luftdaten-" + System.currentTimeMillis())  // новая группа на каждый прогон
+                .setStartingOffsets(OffsetsInitializer.latest())
+                .setValueOnlyDeserializer(new SimpleStringSchema())
+                .build();
+        DataStream<String> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka source");
+        DataStream<SPS30Reading> withTimestamps = stream
                 .map(SPS30Parser::parseReading)
                 .filter(r -> r.getSensor_id() != null && r.getP2() != null
                         && r.getN1() != null && r.getN05() != null && r.getTS() != null)
