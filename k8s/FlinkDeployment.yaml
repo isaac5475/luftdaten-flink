@@ -3,7 +3,7 @@ kind: FlinkDeployment
 metadata:
   name: luftdaten-job
 spec:
-  image: luftdaten-flink:1.0
+  image: luftdaten-flink:local
 
   flinkVersion: v1_19
 
@@ -11,26 +11,28 @@ spec:
 
   jobManager:
     resource:
-      memory: "2048m"
+      memory: "1024m"
       cpu: 1
 
   taskManager:
     resource:
-      memory: "2048m"
-      cpu: 1
+      memory: "4096m"
+      cpu: 4
 
   job:
     jarURI: local:///opt/flink/usrlib/luftdaten-flink-0.1.jar
     args:
-      - "datagen"
-      - "9090"
+      - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
+      - "bid"
       - "rtracker"
       - "9000"
     parallelism: 2
     upgradeMode: stateless
 
   flinkConfiguration:
+    rest.profiling.enabled: "true"
     execution.checkpointing.interval: "10s"
+    taskmanager.numberOfTaskSlots: "4"
     state.backend: hashmap
 
     job.autoscaler.enabled: "true"
@@ -40,4 +42,7 @@ spec:
     job.autoscaler.target.utilization: "0.7"
 
     # stabilize scaling decisions
-    job.autoscaler.stabilization.interval: "60s"
+    job.autoscaler.stabilization.interval: "10s"
+    job.autoscaler.metrics.window: "1m"
+    job.autoscaler.scaling.interval: "30s"
+    job.autoscaler.max-parallelism: "8"

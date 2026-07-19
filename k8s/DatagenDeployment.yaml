@@ -23,6 +23,11 @@ spec:
 
             - mountPath: /app/data
               name: data
+          env: 
+            - name: DATAGEN_BIN
+              value: /usr/local/bin/datagen_shared
+            - name: DATAGEN_CONFIG
+              value: /app/config/config.kafka.yaml
       volumes:
         - name: config
           configMap:
@@ -30,5 +35,5 @@ spec:
 
         - name: data
           hostPath:
-            path: /home/murat/BA/datasets/
+            path: /home/murat/BA/dataset/
             type: DirectoryOrCreate
