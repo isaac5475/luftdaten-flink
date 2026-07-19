@@ -1,0 +1,14 @@
+# k8s/topic.yaml
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  name: bid
+  namespace: kafka
+  labels:
+    strimzi.io/cluster: my-cluster
+spec:
+  partitions: 8
+  replicas: 1
+  config:
+    retention.ms: 600000    
+    segment.bytes: 268435456

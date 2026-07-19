@@ -1,0 +1,41 @@
+# k8s/DatagenJob.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: datagen-run
+  labels:
+    app: datagen
+spec:
+  activeDeadlineSeconds: 90     
+  backoffLimit: 0               
+  ttlSecondsAfterFinished: 300  
+  template:
+    metadata:
+      labels:
+        app: datagen
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: datagen
+          image: datagen:local
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9090
+          env:
+            - name: DATAGEN_BIN
+              value: /usr/local/bin/datagen_shared
+            - name: DATAGEN_CONFIG
+              value: /app/config/config.kafka.yaml
+          volumeMounts:
+            - mountPath: /app/config/
+              name: config
+            - mountPath: /app/data
+              name: data
+      volumes:
+        - name: config
+          configMap:
+            name: datagen-config
+        - name: data
+          hostPath:
+            path: /home/murat/BA/dataset/
+            type: DirectoryOrCreate
