@@ -1,15 +1,15 @@
-data_rate: 100
+data_rate: 100000
 period: 1000
-chunk_size: 1000
+chunk_size: 60000
 
 pattern:
-  - type: uniform
-#  - fraction: 0.7
-#  - distribution: 0.3
+  - type: burst
+  - fraction: 0.7
+  - distribution: 0.3
 
 data_source:
   type: "csv"
-  file: "data/2021-01-01_sps30_sensor_43485.csv"
+  file: "data/sps30_2021_parsed_timestamp_comma_separated_clean.csv"
   #type: "image_folder"
   #file: "/app/data/img"
   #encoding: "base64"

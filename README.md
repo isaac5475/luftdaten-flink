@@ -104,7 +104,7 @@ python3 fetch_sps30_data_for_month.py <year-month, e.g.: 2021-03>
 ```bash
 python3 ./latency-plotter.py --summary \
     latency-logs/latency_output.log \
-    -o "plots/latency_plot_${TIMESTAMP}.png"
+    -o "plots/${TIMESTAMP}.png"
 ```
 
 ### Run the script to start the stack, wait for 60 seconds, stop the stack, and generate the latency plot
