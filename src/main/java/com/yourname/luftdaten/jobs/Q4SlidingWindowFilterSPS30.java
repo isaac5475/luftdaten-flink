@@ -51,7 +51,7 @@ public class Q4SlidingWindowFilterSPS30 {
                     protected Double getValue(SPS30Reading value) {
                         return value.getN05();
                     }
-                }).filter(r -> r.f0 > THRESHOLD).map(r -> String.format("N05: %.2f,%d", r.f0, r.f1))
+                }).filter(r -> r.f0 > THRESHOLD).map(r -> String.format("N05: %.2f,%d\n", r.f0, r.f1))
                 .writeToSocket(sinkHost, sinkPort, new SimpleStringSchema());
 
         // Execute program, beginning computation.

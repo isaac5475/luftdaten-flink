@@ -101,7 +101,7 @@ TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 python3 ./latency-plotter.py --summary \
     latency-logs/latency_output.log \
-    "plots/latency_plot_${TIMESTAMP}.png"
+    -o "plots/latency_plot_${TIMESTAMP}.png"
 kubectl delete flinkdeployment luftdaten-job
 kubectl delete job datagen-run --ignore-not-found
 

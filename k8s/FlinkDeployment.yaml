@@ -30,10 +30,14 @@ spec:
     upgradeMode: stateless
 
   flinkConfiguration:
-    rest.profiling.enabled: "true"
     execution.checkpointing.interval: "10s"
-    taskmanager.numberOfTaskSlots: "4"
     state.backend: hashmap
+    state.checkpoints.dir: file:///opt/flink/checkpoints
+    execution.checkpointing.storage: filesystem
+
+    rest.profiling.enabled: "true"
+
+    taskmanager.numberOfTaskSlots: "4"
 
     job.autoscaler.enabled: "true"
     job.autoscaler.scaling.enabled: "true"
