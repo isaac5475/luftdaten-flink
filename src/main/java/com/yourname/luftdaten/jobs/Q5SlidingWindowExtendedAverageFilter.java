@@ -48,7 +48,7 @@ public class Q5SlidingWindowExtendedAverageFilter {
                         && r.getN1() != null && r.getN05() != null && r.getTS() != null)
                 .assignTimestampsAndWatermarks(
                         WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps()
-                                .withTimestampAssigner((r, ts) -> r.getTimestamp().toEpochMilli()));
+                                .withTimestampAssigner((r, ts) -> r.getTimestamp()));
 
         withTimestamps
                 .keyBy(SPS30Reading::getSensor_id)

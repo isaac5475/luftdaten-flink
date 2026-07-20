@@ -44,7 +44,7 @@ public class Q4SlidingWindowFilterSPS30 {
                 .build();
         DataStream<String> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka source");
         DataStream<SPS30Reading> correctReadings = stream.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getN05() != null);
-        DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forBoundedOutOfOrderness(Duration.ofSeconds(5)).withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()).withIdleness(Duration.ofSeconds(10)));
+        DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forBoundedOutOfOrderness(Duration.ofSeconds(5)).withTimestampAssigner((reading, timestamp) -> reading.getTimestamp()).withIdleness(Duration.ofSeconds(10)));
 
         withTimestamps.keyBy(SPS30Reading::getSensor_id).window(SlidingEventTimeWindows.of(Duration.ofHours(1), Duration.ofMinutes(10))).aggregate(new AverageProcessingWithDatagenTimestampFunction<>() {
                     @Override

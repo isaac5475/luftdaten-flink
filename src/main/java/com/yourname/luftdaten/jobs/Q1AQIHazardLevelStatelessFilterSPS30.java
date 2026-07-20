@@ -39,7 +39,7 @@ public class Q1AQIHazardLevelStatelessFilterSPS30 {
                 .build();
         DataStream<String> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka source");
         DataStream<SPS30Reading> correctReadings = stream.map(SPS30Parser::parseReading).filter(reading -> reading.getSensor_id() != null && reading.getP1() != null && reading.getP2() != null);
-        DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
+        DataStream<SPS30Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp()));
 
         withTimestamps.map(reading -> Tuple2.of(AQICalculator.aqi(reading.getP1(), reading.getP2()), reading)).returns(TypeInformation.of(new org.apache.flink.api.common.typeinfo.TypeHint<>() {
                 }))

@@ -17,28 +17,11 @@ public class SensorReadingParser implements ReadingParser {
         reading.setLocation(tryGetIntegerValue(fields, 2));
         reading.setLat(tryGetDoubleValue(fields, 3));
         reading.setLon(tryGetDoubleValue(fields, 4));
-        Instant timestamp = tryGetInstantValue(fields, 5);
+        Long timestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 1)).orElse(0L);
         reading.setTimestamp(timestamp);
-        Long datagenTimestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 1)).orElse(0L);
+        Long datagenTimestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 2)).orElse(0L);
         reading.setDatagenTimestamp(datagenTimestamp);
         return reading;
-    }
-
-    private static Instant tryGetInstantValue(String[] fields, int idx) {
-        if (fields.length <= idx || fields[idx].isEmpty()) {
-            return null;
-        }
-        try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss");
-            return LocalDateTime.parse(fields[idx], formatter).toInstant(java.time.ZoneOffset.UTC);
-        } catch (DateTimeParseException e) {
-            try {
-                return Instant.parse(fields[idx]);
-            } catch (DateTimeParseException ex) {
-                System.err.println("Could not parse timestamp: '" + fields[idx] + "'");
-                return null;
-            }
-        }
     }
 
     protected static String tryGetStringValue(String[] fields, int idx) {
