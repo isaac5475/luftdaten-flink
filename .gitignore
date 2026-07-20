@@ -4,6 +4,7 @@ target/
 *.log
 .DS_Store
 .env
+.idea
 data/
 ./latency-logs
 /venv/
