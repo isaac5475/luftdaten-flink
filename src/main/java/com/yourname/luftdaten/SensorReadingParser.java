@@ -10,6 +10,7 @@ import com.yourname.luftdaten.entities.SensorReading;
 
 public class SensorReadingParser implements ReadingParser {
     public static SensorReading parseReading(String row) {
+        row = row.trim();
         String[] fields = row.split(FIELD_SEPARATOR);
         SensorReading reading = new SensorReading();
         reading.setSensor_id(tryGetIntegerValue(fields, 0));
