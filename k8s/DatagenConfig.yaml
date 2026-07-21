@@ -1,7 +1,7 @@
 apiVersion: v1
 data:
   config.kafka.yaml: |
-    data_rate: 300000
+    data_rate: 150000
     period: 1000
     chunk_size: 900000
 
@@ -17,7 +17,7 @@ data:
       #file: "/app/data/img"
       #encoding: "base64"
 
-    duration: 60
+    duration: 90
     host: "0.0.0.0"
     ports:
       - 9090

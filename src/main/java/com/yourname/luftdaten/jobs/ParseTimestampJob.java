@@ -66,7 +66,7 @@ public class ParseTimestampJob {
                 .filter(s -> !s.startsWith("sensor_id"))
                 .map(s -> Tuple2.of(s, SensorReadingParser.parseReading(s))).returns(TypeInformation.of(new org.apache.flink.api.common.typeinfo.TypeHint<>() {
                 }))
-                .map(tuple -> String.format("%s,%s", tuple.f0.replace(";",","), tuple.f1.getTimestamp().toEpochMilli()));
+                .map(tuple -> String.format("%s,%s", tuple.f0.replace(";",","), tuple.f1.getTimestamp()));
         FileSink<String> fileSink = FileSink
                 .forRowFormat(new Path("tmp/luftdaten-output"), new SimpleStringEncoder<String>("UTF-8"))
                 .withRollingPolicy(

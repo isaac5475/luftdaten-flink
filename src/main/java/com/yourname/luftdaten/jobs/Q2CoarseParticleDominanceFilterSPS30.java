@@ -33,8 +33,8 @@ public class Q2CoarseParticleDominanceFilterSPS30 {
         KafkaSource<String> source = KafkaSource.<String>builder()
                 .setBootstrapServers(bootstrapServers)
                 .setTopics(topic)
-                .setGroupId("luftdaten-" + System.currentTimeMillis())  // новая группа на каждый прогон
-                .setStartingOffsets(OffsetsInitializer.latest())
+                .setGroupId("luftdaten-benchmark")
+                .setStartingOffsets(OffsetsInitializer.earliest())
                 .setValueOnlyDeserializer(new SimpleStringSchema())
                 .build();
         DataStream<String> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka source");

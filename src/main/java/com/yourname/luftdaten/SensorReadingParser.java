@@ -17,9 +17,9 @@ public class SensorReadingParser implements ReadingParser {
         reading.setLocation(tryGetIntegerValue(fields, 2));
         reading.setLat(tryGetDoubleValue(fields, 3));
         reading.setLon(tryGetDoubleValue(fields, 4));
-        Long timestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 1)).orElse(0L);
+        Long timestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 2)).orElse(0L);
         reading.setTimestamp(timestamp);
-        Long datagenTimestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 2)).orElse(0L);
+        Long datagenTimestamp = Optional.ofNullable(tryGetLongValue(fields, fields.length - 1)).orElse(0L);
         reading.setDatagenTimestamp(datagenTimestamp);
         return reading;
     }

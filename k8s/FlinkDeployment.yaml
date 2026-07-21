@@ -46,7 +46,7 @@ spec:
     job.autoscaler.target.utilization: "0.7"
 
     # stabilize scaling decisions
-    job.autoscaler.stabilization.interval: "10s"
+    job.autoscaler.stabilization.interval: "30s"
     job.autoscaler.metrics.window: "1m"
     job.autoscaler.scaling.interval: "30s"
     job.autoscaler.max-parallelism: "8"

@@ -37,8 +37,8 @@ public class Q5SlidingWindowExtendedAverageFilter {
         KafkaSource<String> source = KafkaSource.<String>builder()
                 .setBootstrapServers(bootstrapServers)
                 .setTopics(topic)
-                .setGroupId("luftdaten-" + System.currentTimeMillis())  // новая группа на каждый прогон
-                .setStartingOffsets(OffsetsInitializer.latest())
+                .setGroupId("luftdaten-benchmark")
+                .setStartingOffsets(OffsetsInitializer.earliest())
                 .setValueOnlyDeserializer(new SimpleStringSchema())
                 .build();
         DataStream<String> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka source");
@@ -46,9 +46,9 @@ public class Q5SlidingWindowExtendedAverageFilter {
                 .map(SPS30Parser::parseReading)
                 .filter(r -> r.getSensor_id() != null && r.getP2() != null
                         && r.getN1() != null && r.getN05() != null && r.getTS() != null)
-                .assignTimestampsAndWatermarks(
-                        WatermarkStrategy.<SPS30Reading>forMonotonousTimestamps()
-                                .withTimestampAssigner((r, ts) -> r.getTimestamp()));
+                .assignTimestampsAndWatermarks(WatermarkStrategy.<SPS30Reading>forBoundedOutOfOrderness(
+                        Duration.ofSeconds(5)).withTimestampAssigner((reading, timestamp) ->
+                        reading.getTimestamp()).withIdleness(Duration.ofSeconds(10)));
 
         withTimestamps
                 .keyBy(SPS30Reading::getSensor_id)

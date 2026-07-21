@@ -37,5 +37,5 @@ spec:
             name: datagen-config
         - name: data
           hostPath:
-            path: /home/murat/BA/dataset/
+            path: /home/docker/dataset/
             type: DirectoryOrCreate

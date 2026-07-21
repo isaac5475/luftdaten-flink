@@ -62,7 +62,7 @@ public class DailyTemperatureBME280StreamJob {
         DataStream<BME280Reading> correctReadings = filteredLines
                 .map(BME280Parser::parseReading)
                 .filter(reading -> reading.getSensor_id() != null && reading.getTemperature() != null);
-        DataStream<BME280Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<BME280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp().toEpochMilli()));
+        DataStream<BME280Reading> withTimestamps = correctReadings.assignTimestampsAndWatermarks(WatermarkStrategy.<BME280Reading>forMonotonousTimestamps().withTimestampAssigner((reading, timestamp) -> reading.getTimestamp()));
         DataStream<Tuple2<String, Long>> tempAverageHourly = withTimestamps
                 .keyBy(BME280Reading::getSensor_id)
                 .window(TumblingEventTimeWindows.of(Duration.ofMinutes(1)))
