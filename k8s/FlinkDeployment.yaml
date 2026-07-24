@@ -21,7 +21,7 @@ spec:
 
   job:
     jarURI: local:///opt/flink/usrlib/luftdaten-flink-0.1.jar
-    entryClass: com.yourname.luftdaten.jobs.Q2CoarseParticleDominanceFilterSPS30
+    entryClass: com.yourname.luftdaten.jobs.Q5SlidingWindowExtendedAverageFilter
     args:
       - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
       - "bid"

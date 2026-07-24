@@ -1,9 +1,9 @@
 apiVersion: v1
 data:
   config.kafka.yaml: |
-    data_rate: 150000
-    period: 1000
-    chunk_size: 900000
+    data_rate: 7566253   ## 1/4 size of dataset for 2021/22
+    period: 300000  ## 1/2 of duration (5 mins)
+    chunk_size: 1900000
 
     pattern:
         - type: burst
@@ -17,7 +17,7 @@ data:
       #file: "/app/data/img"
       #encoding: "base64"
 
-    duration: 90
+    duration: 600 ##  10 mins
     host: "0.0.0.0"
     ports:
       - 9090
@@ -60,7 +60,7 @@ data:
       file: "/app/data/img"
       encoding: "base64"
 
-    duration: 60
+    duration: 600
     host: "0.0.0.0"
     ports:
       - 8080

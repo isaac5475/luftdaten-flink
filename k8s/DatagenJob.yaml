@@ -6,9 +6,9 @@ metadata:
   labels:
     app: datagen
 spec:
-  activeDeadlineSeconds: 90     
+  activeDeadlineSeconds: 660
   backoffLimit: 0               
-  ttlSecondsAfterFinished: 300  
+  ttlSecondsAfterFinished: 60  
   template:
     metadata:
       labels:
