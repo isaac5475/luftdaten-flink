@@ -21,6 +21,7 @@ spec:
 
   job:
     jarURI: local:///opt/flink/usrlib/luftdaten-flink-0.1.jar
+    entryClass: com.yourname.luftdaten.jobs.Q2CoarseParticleDominanceFilterSPS30
     args:
       - "my-cluster-kafka-bootstrap.kafka.svc.cluster.local:9092"
       - "bid"
@@ -30,10 +31,12 @@ spec:
     upgradeMode: stateless
 
   flinkConfiguration:
-    execution.checkpointing.interval: "10s"
-    state.backend: hashmap
-    state.checkpoints.dir: file:///opt/flink/checkpoints
+    execution.checkpointing.interval: "30s"
     execution.checkpointing.storage: filesystem
+    high-availability.type: kubernetes
+    high-availability.storageDir: file:///opt/flink/checkpoints/ha
+    state.checkpoints.dir: file:///opt/flink/checkpoints
+    state.backend: hashmap
 
     rest.profiling.enabled: "true"
 

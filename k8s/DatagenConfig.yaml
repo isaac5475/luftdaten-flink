@@ -37,8 +37,8 @@ data:
         linger.ms: "5"
         batch.size: "1048576"
         acks: "1"
-        queue.buffering.max.messages: "1000000"
-        queue.buffering.max.kbytes: "1048576"
+        queue.buffering.max.messages: "5000000"
+        queue.buffering.max.kbytes: "2097152"
 
     zipf:
       period_ms: 1000
