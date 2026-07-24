@@ -6,10 +6,16 @@ target/
 .env
 .idea
 data/
-./latency-logs
+latency-logs/
 /venv/
 /lib64/
 tmp
 bin
 lib64
 lib
+*.png
+*.csv
+benchmark_timeline/
+benchmark_results/
+plots/
+

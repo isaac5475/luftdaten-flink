@@ -25,6 +25,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/progress_bar.sh"
 source "$SCRIPT_DIR/lib/timeline_logging.sh"
 source "$SCRIPT_DIR/lib/resource_logging.sh"
+source "$SCRIPT_DIR/lib/parallelism_logging.sh"
 
 # --skip-build / -s: skip rebuilding and reloading the datagen/rtracker/
 # luftdaten-flink images. Useful when only spec.job.entryClass changed
@@ -49,6 +50,12 @@ KAFKA_BROKER_POD="my-cluster-dual-role-0"
 KAFKA_NAMESPACE="kafka"
 KAFKA_POLL_INTERVAL=2
 KAFKA_EXEC_TIMEOUT=3
+
+# Config used by lib/parallelism_logging.sh — the Flink Kubernetes Operator
+# creates a "<deployment-name>-rest" Service automatically.
+PARALLELISM_REST_SERVICE="luftdaten-job-rest"
+PARALLELISM_POLL_INTERVAL=5
+PARALLELISM_EXEC_TIMEOUT=3
 
 echo "Checking Minikube status..."
 if minikube status >/dev/null 2>&1; then
@@ -160,6 +167,7 @@ done
 # period as well as the burst.
 start_timeline_logging
 start_resource_logging
+start_parallelism_logging
 
 echo "Starting datagen job..."
 kubectl delete job datagen-run --ignore-not-found
@@ -170,6 +178,7 @@ progress_bar "$SLEEP_SECONDS"
 
 stop_timeline_logging
 stop_resource_logging
+stop_parallelism_logging
 
 echo "Stopping Flink..."
 RTRACKER_POD=$(kubectl get pod -l app=rtracker -o jsonpath='{.items[0].metadata.name}')
