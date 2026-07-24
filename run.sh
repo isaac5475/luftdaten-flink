@@ -1,7 +1,54 @@
 #!/bin/bash
 set -e
+
+# Refuse to start if another instance of this script is already running.
+#
+# Using flock instead of a PID file: a PID-file lock (checking `kill -0` on
+# a stored PID) is fragile on a long-uptime shared server — PIDs get
+# recycled, so a stale lockfile can point at PID N right as some unrelated
+# process reuses that same number, making the check succeed even though
+# run.sh isn't actually running (this happened repeatedly in practice).
+# flock ties the lock to an open file descriptor at the kernel level: it's
+# released automatically the instant the holding process exits, for any
+# reason, with no PID comparison and no stale-lock cleanup required.
+LOCKFILE="/tmp/luftdaten-run.lock"
+exec 200>"$LOCKFILE"
+if ! flock -n 200; then
+    echo "ERROR: another instance of run.sh is already running."
+    echo "Check for it with: ps aux | grep run.sh"
+    exit 1
+fi
+# No trap needed to release the lock — closing fd 200 (which happens
+# automatically when the script exits, for any reason) releases it.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/lib/progress_bar.sh"
+source "$SCRIPT_DIR/lib/timeline_logging.sh"
+source "$SCRIPT_DIR/lib/resource_logging.sh"
+
+# --skip-build / -s: skip rebuilding and reloading the datagen/rtracker/
+# luftdaten-flink images. Useful when only spec.job.entryClass changed
+# (e.g. when called repeatedly from run_all_jobs.sh) and the jar/image
+# themselves are already up to date on this Minikube.
+SKIP_BUILD=false
+for arg in "$@"; do
+    case "$arg" in
+        --skip-build|-s)
+            SKIP_BUILD=true
+            ;;
+    esac
+done
+
 source ./.env
 echo "Sleep: $SLEEP_SECONDS"
+
+# Config used by lib/timeline_logging.sh
+KAFKA_GROUP="luftdaten-benchmark"
+KAFKA_TOPIC="bid"
+KAFKA_BROKER_POD="my-cluster-dual-role-0"
+KAFKA_NAMESPACE="kafka"
+KAFKA_POLL_INTERVAL=2
+KAFKA_EXEC_TIMEOUT=3
 
 echo "Checking Minikube status..."
 if minikube status >/dev/null 2>&1; then
@@ -9,6 +56,14 @@ if minikube status >/dev/null 2>&1; then
 else
     echo "Starting Minikube"
     minikube start --driver=docker --cpus=12 --memory=12g
+fi
+
+echo "Checking metrics-server (required for resource usage logging)..."
+if ! minikube addons list 2>/dev/null | grep -q "metrics-server.*enabled"; then
+    echo "Enabling metrics-server..."
+    minikube addons enable metrics-server
+    echo "Waiting a moment for metrics-server to start reporting..."
+    sleep 15
 fi
 
 echo "Checking Flink Kubernetes Operator..."
@@ -56,13 +111,17 @@ kubectl apply -f k8s/topic.yaml
 ## minikube ssh -- "sudo mkdir -p /home/murat/BA/datasets && sudo tar xf /tmp/data.tar -C /home/murat/BA/datasets"
 ## rm /tmp/data.tar
 
-echo "Building images"
-docker build -t luftdaten-flink:local .
-(cd infra/latency-tracker && docker build -t rtracker:local .)
-(cd infra/datagen_parallel && docker build -t datagen:local -f docker/Dockerfile .)
-minikube image load datagen:local
-minikube image load rtracker:local
-minikube image load luftdaten-flink:local
+if [ "$SKIP_BUILD" = true ]; then
+    echo "Skipping image build/load (--skip-build)."
+else
+    echo "Building images"
+    DOCKER_BUILDKIT=0 docker build -t luftdaten-flink:local .
+    (cd infra/latency-tracker && DOCKER_BUILDKIT=0 docker build -t rtracker:local .)
+    (cd infra/datagen_parallel && DOCKER_BUILDKIT=0 docker build -t datagen:local -f docker/Dockerfile .)
+    minikube image load datagen:local
+    minikube image load rtracker:local
+    minikube image load luftdaten-flink:local
+fi
 
 echo "Deploying infrastructure..."
 kubectl delete configmap/rtracker-config --ignore-not-found
@@ -74,9 +133,19 @@ kubectl apply -f k8s/RTrackerService.yaml
 kubectl rollout restart deployment/rtracker
 kubectl rollout status deployment/rtracker
 
-echo "Clearing previous latency logs..."
-RTRACKER_POD=$(kubectl get pod -l app=rtracker -o jsonpath='{.items[0].metadata.name}')
-kubectl exec "$RTRACKER_POD" -- sh -c "rm -f /app/latency-logs/*.log"
+echo "Restarting Kafka topic to clear the state of the queues..."
+kubectl delete kafkatopic "$KAFKA_TOPIC" -n kafka --ignore-not-found
+kubectl apply -f k8s/topic.yaml
+kubectl wait kafkatopic/"$KAFKA_TOPIC" -n kafka --for=condition=Ready --timeout=60s
+
+# Fixed consumer group id ("luftdaten-benchmark") survives Flink autoscaler
+# restarts without losing offsets, but that means after recreating the topic
+# above, any old committed offsets may point past the new (empty) log.
+# Delete the group so each run starts clean against the fresh topic.
+echo "Clearing stale consumer group offsets..."
+kubectl exec "$KAFKA_BROKER_POD" -n "$KAFKA_NAMESPACE" -- \
+    bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 \
+    --delete --group "$KAFKA_GROUP" 2>/dev/null || true
 
 echo "Deploying Flink..."
 kubectl apply -f k8s/FlinkDeployment.yaml
@@ -87,12 +156,20 @@ do
     sleep 2
 done
 
+# Started now, before datagen, so the timeline captures the baseline (lag=0)
+# period as well as the burst.
+start_timeline_logging
+start_resource_logging
+
 echo "Starting datagen job..."
 kubectl delete job datagen-run --ignore-not-found
 kubectl apply -f k8s/DatagenJob.yaml
 
 echo "Benchmark started."
-sleep "$SLEEP_SECONDS"
+progress_bar "$SLEEP_SECONDS"
+
+stop_timeline_logging
+stop_resource_logging
 
 echo "Stopping Flink..."
 RTRACKER_POD=$(kubectl get pod -l app=rtracker -o jsonpath='{.items[0].metadata.name}')
