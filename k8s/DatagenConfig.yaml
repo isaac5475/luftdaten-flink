@@ -1,7 +1,7 @@
 apiVersion: v1
 data:
   config.kafka.yaml: |
-    data_rate: 7566253   ## 1/4 size of dataset for 2021/22
+    data_rate: 15132506   ## 1/2 size of dataset for 2021/22
     period: 300000  ## 1/2 of duration (5 mins)
     chunk_size: 1900000
 
