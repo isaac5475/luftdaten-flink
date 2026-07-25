@@ -22,10 +22,10 @@ fi
 # automatically when the script exits, for any reason) releases it.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$SCRIPT_DIR/lib/progress_bar.sh"
-source "$SCRIPT_DIR/lib/timeline_logging.sh"
-source "$SCRIPT_DIR/lib/resource_logging.sh"
-source "$SCRIPT_DIR/lib/parallelism_logging.sh"
+source "$SCRIPT_DIR/utils/progress_bar.sh"
+source "$SCRIPT_DIR/utils/timeline_logging.sh"
+source "$SCRIPT_DIR/utils/resource_logging.sh"
+source "$SCRIPT_DIR/utils/parallelism_logging.sh"
 
 # --skip-build / -s: skip rebuilding and reloading the datagen/rtracker/
 # luftdaten-flink images. Useful when only spec.job.entryClass changed
@@ -43,7 +43,7 @@ done
 source ./.env
 echo "Sleep: $SLEEP_SECONDS"
 
-# Config used by lib/timeline_logging.sh
+# Config used by utils/timeline_logging.sh
 KAFKA_GROUP="luftdaten-benchmark"
 KAFKA_TOPIC="bid"
 KAFKA_BROKER_POD="my-cluster-dual-role-0"
@@ -51,7 +51,7 @@ KAFKA_NAMESPACE="kafka"
 KAFKA_POLL_INTERVAL=2
 KAFKA_EXEC_TIMEOUT=3
 
-# Config used by lib/parallelism_logging.sh — the Flink Kubernetes Operator
+# Config used by utils/parallelism_logging.sh — the Flink Kubernetes Operator
 # creates a "<deployment-name>-rest" Service automatically.
 PARALLELISM_REST_SERVICE="luftdaten-job-rest"
 PARALLELISM_POLL_INTERVAL=5
