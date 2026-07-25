@@ -36,6 +36,8 @@ JOBS=(
     "com.yourname.luftdaten.jobs.Q5SlidingWindowExtendedAverageFilter:Q5_cross_spectrum"
 )
 
+ALL_RESULTS_DIR="benchmark_results"
+
 if ! grep -q "entryClass" "$FLINK_DEPLOYMENT_YAML"; then
     echo "ERROR: $FLINK_DEPLOYMENT_YAML has no 'entryClass' field under spec.job."
     echo "Add a line like 'entryClass: null' under spec.job so this script can patch it."
@@ -70,6 +72,10 @@ if [ -n "$RUN_LABEL" ]; then
 else
     RESULTS_ROOT="benchmark_results_$(date +%Y%m%d_%H%M%S)"
 fi
+
+mkdir -p "$ALL_RESULTS_DIR"
+
+RESULTS_ROOT="$ALL_RESULTS_DIR/$RESULTS_ROOT"
 
 if [ -d "$RESULTS_ROOT" ]; then
     echo "ERROR: $RESULTS_ROOT already exists — pick a different label or remove it first."

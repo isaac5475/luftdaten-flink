@@ -17,5 +17,6 @@ lib
 *.csv
 benchmark_timeline/
 benchmark_results/
+benchmark_results*
 plots/
 
