@@ -25,9 +25,9 @@ spec:
               name: data
           env: 
             - name: DATAGEN_BIN
-              value: /usr/local/bin/datagen_shared
+              value: /usr/local/bin/datagen
             - name: DATAGEN_CONFIG
-              value: /app/config/config.kafka.yaml
+              value: /app/config/config.yaml
       volumes:
         - name: config
           configMap:

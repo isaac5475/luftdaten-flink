@@ -78,29 +78,27 @@ data:
       s: 1.4
       stochastic: true
   config.yaml: |
-    data_rate: 300000
-    period: 1000
-    chunk_size: 600000
+    data_rate: 15132506   ## 1/2 size of dataset for 2021/22
+    period: 300000  ## 1/2 of duration (5 mins)
+    chunk_size: 1900000
 
     pattern:
-        - type: burst
-        - fraction: 0.7
-        - distribution: 0.3
+      - type: burst
+      - fraction: 0.7
+      - distribution: 0.3
 
     data_source:
       type: "csv"
-      file: "data/sps30_2021_2022_parsed_timestamp_comma_separated_clean.csv"
+      file: "data/data.csv"
       #type: "image_folder"
       #file: "/app/data/img"
       #encoding: "base64"
 
-    duration: 60000
+    duration: 600 ##  10 mins
     host: "0.0.0.0"
     ports:
       - 9090
-      - 9091
-    #  - 8082
-
+      
     mqtt:
       enabled: false
       host: "mosquitto"
