@@ -43,6 +43,12 @@ done
 source ./.env
 echo "Sleep: $SLEEP_SECONDS"
 
+# Log timing metadata for reproducibility
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RUN_START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
+RUN_START_EPOCH=$(date +%s)
+echo "Run started at: $RUN_START_TIME (epoch: $RUN_START_EPOCH)"
+
 # Config used by utils/timeline_logging.sh
 KAFKA_GROUP="luftdaten-benchmark"
 KAFKA_TOPIC="bid"
@@ -180,15 +186,40 @@ stop_timeline_logging
 stop_resource_logging
 stop_parallelism_logging
 
-echo "Stopping Flink..."
+RUN_END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.%3NZ")
+RUN_END_EPOCH=$(date +%s)
+RUN_DURATION=$((RUN_END_EPOCH - RUN_START_EPOCH))
+echo "Run ended at: $RUN_END_TIME (epoch: $RUN_END_EPOCH)"
+echo "Actual duration: ${RUN_DURATION}s (requested: ${SLEEP_SECONDS}s)"
+
+echo "Collecting results..."
 RTRACKER_POD=$(kubectl get pod -l app=rtracker -o jsonpath='{.items[0].metadata.name}')
 kubectl cp "$RTRACKER_POD":/app/latency-logs/. ./latency-logs/
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
 python3 ./latency-plotter.py --summary \
     latency-logs/latency_output.log \
     -o "plots/latency_plot_${TIMESTAMP}.png"
+
+echo "Stopping Flink..."
 kubectl delete flinkdeployment luftdaten-job
 kubectl delete job datagen-run --ignore-not-found
+
+# Write run metadata file for reproducibility and analysis
+mkdir -p run_metadata
+METADATA_FILE="run_metadata/run_${TIMESTAMP}.json"
+cat > "$METADATA_FILE" << EOF
+{
+  "start_time_utc": "$RUN_START_TIME",
+  "end_time_utc": "$RUN_END_TIME",
+  "start_epoch": $RUN_START_EPOCH,
+  "end_epoch": $RUN_END_EPOCH,
+  "actual_duration_seconds": $RUN_DURATION,
+  "requested_duration_seconds": $SLEEP_SECONDS,
+  "timing_variance_percent": $(echo "scale=2; ($RUN_DURATION - $SLEEP_SECONDS) * 100 / $SLEEP_SECONDS" | bc),
+  "kafka_topic": "$KAFKA_TOPIC",
+  "kafka_group": "$KAFKA_GROUP"
+}
+EOF
+echo "Metadata saved: $METADATA_FILE"
 
 echo "Done."
