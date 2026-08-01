@@ -28,7 +28,46 @@ spec:
       - "rtracker"
       - "9000"
     parallelism: 2
-    upgradeMode: stateless
+    upgradeMode: last-state
+
+  # /opt/flink/checkpoints must resolve to the same directory in both the
+  # JobManager and TaskManager pods, and survive the pod deletion that a
+  # last-state rescale does -- otherwise the new pod finds no checkpoint to
+  # resume from and silently falls back to a stateless restart. Minikube is
+  # single-node, so a hostPath on the node (same pattern as the datagen
+  # dataset mount in DatagenJob.yaml) gives every pod that lands on it the
+  # same underlying directory without needing a PVC/StorageClass.
+  #
+  # Kubernetes always creates a `DirectoryOrCreate` hostPath as root:root
+  # 0755, but the Flink image's entrypoint drops from root to the `flink`
+  # user (uid 9999) via gosu before starting the JVM. As "other", that user
+  # has no write bit on a root-owned 0755 directory, so FileSystemJobResultStore's
+  # mkdirs() fails silently (Flink logs "Created ... directory" unconditionally,
+  # without checking the result) and the JobManager then crash-loops on
+  # "The base directory of the JobResultStore isn't accessible". The
+  # initContainer below chowns the mount to 9999:9999 first so the main
+  # container's normal non-root user can actually write to it.
+  podTemplate:
+    spec:
+      initContainers:
+        - name: fix-checkpoint-dir-owner
+          image: luftdaten-flink:local
+          command: ["sh", "-c", "chown -R 9999:9999 /opt/flink/checkpoints"]
+          securityContext:
+            runAsUser: 0
+          volumeMounts:
+            - name: checkpoints
+              mountPath: /opt/flink/checkpoints
+      containers:
+        - name: flink-main-container
+          volumeMounts:
+            - name: checkpoints
+              mountPath: /opt/flink/checkpoints
+      volumes:
+        - name: checkpoints
+          hostPath:
+            path: /home/docker/flink-checkpoints/
+            type: DirectoryOrCreate
 
   flinkConfiguration:
     execution.checkpointing.interval: "30s"

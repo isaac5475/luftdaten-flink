@@ -6,7 +6,7 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.serialization.SimpleStringSchema;
 import org.apache.flink.api.java.tuple.Tuple5;
 import org.apache.flink.connector.kafka.source.KafkaSource;
-import org.apache.flink.connector.kafka.source.enumerator.initializer.OffsetsInitializer;
+import com.yourname.luftdaten.BenchmarkKafkaSource;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows;
@@ -34,13 +34,10 @@ public class Q5SlidingWindowExtendedAverageFilter {
 
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-        KafkaSource<String> source = KafkaSource.<String>builder()
-                .setBootstrapServers(bootstrapServers)
-                .setTopics(topic)
-                .setGroupId("luftdaten-benchmark")
-                .setStartingOffsets(OffsetsInitializer.earliest())
-                .setValueOnlyDeserializer(new SimpleStringSchema())
-                .build();
+        // Offsets/group/deserializer live in BenchmarkKafkaSource so all five
+        // queries read the stream identically; see that class for why
+        // committedOffsets (not earliest) is required for autoscaler runs.
+        KafkaSource<String> source = BenchmarkKafkaSource.create(bootstrapServers, topic);
         DataStream<String> stream = env.fromSource(source, WatermarkStrategy.noWatermarks(), "Kafka source");
         DataStream<SPS30Reading> withTimestamps = stream
                 .map(SPS30Parser::parseReading)
