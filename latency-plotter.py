@@ -8,6 +8,7 @@ Input format per line:
   latency (ms)                                                 event_ts         ingestion_ts
 """
 
+import gzip
 import re
 import sys
 import math
@@ -34,16 +35,33 @@ def parse_line(line: str):
         return None
 
 
-def load(path: str):
-    latencies = []
-    timestamps = []
-    with open(path) as f:
+def load(path: str, max_points: int = 200000):
+    """Read the log, sort by ingestion timestamp, and stride down to at most
+    max_points samples.
+
+    Sorting matters: rtracker runs 16 latency worker threads downstream of a
+    single-threaded receive path, so 3-7% of lines are written out of order
+    (inversions up to ~4s). Plotting in file order makes the x-axis walk
+    backwards. Striding matters because these logs hold 7-16 million points;
+    matplotlib renders that as an unreadable solid block, slowly.
+    """
+    opener = gzip.open if path.endswith(".gz") else open
+    pairs = []
+    with opener(path, "rt", errors="replace") as f:
         for line in f:
+            if "\x00" in line:
+                continue
             result = parse_line(line)
             if result:
                 latency_ms, ingestion_ts = result
-                latencies.append(latency_ms)
-                timestamps.append(ingestion_ts)
+                pairs.append((ingestion_ts, latency_ms))
+    pairs.sort()
+    if max_points and len(pairs) > max_points:
+        stride = len(pairs) // max_points + 1
+        pairs = pairs[::stride]
+        print(f"  (strided every {stride} lines -> {len(pairs)} plotted points)")
+    timestamps = [p[0] for p in pairs]
+    latencies = [p[1] for p in pairs]
     return timestamps, latencies
 
 
@@ -69,7 +87,16 @@ def plot(timestamps, latencies, sorted_latencies, p50, p90, output_path: str = N
     x = [(t - t0) / 1000.0 for t in timestamps]
 
     fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(x, latencies, linewidth=0.8, alpha=0.8, label="latency")
+    # Insert NaN where consecutive samples are more than 2s apart, so the line
+    # BREAKS across the stretches where the load generator produced nothing
+    # (~40% of every period) instead of drawing a straight line across them,
+    # which reads as steady traffic that never happened.
+    y = list(latencies)
+    for i in range(len(x) - 1, 0, -1):
+        if x[i] - x[i - 1] > 2.0:
+            x.insert(i, float("nan"))
+            y.insert(i, float("nan"))
+    ax.plot(x, y, linewidth=0.8, alpha=0.8, label="latency")
 
     if with_percentile:
         # Add horizontal lines for p50 and p90
@@ -106,7 +133,7 @@ def plot(timestamps, latencies, sorted_latencies, p50, p90, output_path: str = N
         mx = max(latencies)
         avg = sum(latencies) / count if count else 0.0
         info_lines = [
-            f"Parsed {count} tuples",
+            f"{count} plotted points",
             f"min latency : {mn} ms",
             f"max latency : {mx} ms",
             f"avg latency : {avg:.1f} ms",
@@ -146,7 +173,7 @@ if __name__ == "__main__":
     p90 = percentile_from_sorted(sorted_latencies, 0.9)
 
     # Print summary to console (same format as before)
-    print(f"Parsed {len(latencies)} tuples")
+    print(f"Plotted {len(latencies)} points (see stride note above for the full line count)")
     print(f"  min latency : {min(latencies)} ms")
     print(f"  max latency : {max(latencies)} ms")
     print(f"  avg latency : {sum(latencies)/len(latencies):.1f} ms")

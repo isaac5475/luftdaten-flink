@@ -22,8 +22,13 @@
 #   KAFKA_EXEC_TIMEOUT     seconds before `kubectl exec` is given up on (e.g. 3)
 
 start_timeline_logging() {
-    mkdir -p benchmark_timeline
-    TIMELINE_OUTPUT="benchmark_timeline/$(date +%Y%m%d_%H%M%S).csv"
+    # Honour BENCHMARK_TIMELINE_DIR so run.sh --run-dir puts every artifact of a
+    # run in that run's own directory. Hardcoding benchmark_timeline/ meant the
+    # timeline and resource CSVs were left behind in the shared directory while
+    # the rest of the run's files went to the result directory.
+    local outdir="${BENCHMARK_TIMELINE_DIR:-benchmark_timeline}"
+    mkdir -p "$outdir"
+    TIMELINE_OUTPUT="$outdir/$(date +%Y%m%d_%H%M%S).csv"
     echo "timestamp,event_type,partition,current_offset,log_end_offset,lag,detail" > "$TIMELINE_OUTPUT"
 
     echo "Starting benchmark timeline logging -> $TIMELINE_OUTPUT"

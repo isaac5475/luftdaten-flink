@@ -28,8 +28,11 @@ start_resource_logging() {
     local exec_timeout="${RESOURCE_EXEC_TIMEOUT:-3}"
     local namespaces="${RESOURCE_NAMESPACES:-default kafka}"
 
-    mkdir -p benchmark_timeline
-    RESOURCE_OUTPUT="benchmark_timeline/resources_$(date +%Y%m%d_%H%M%S).csv"
+    # See the note in utils/timeline_logging.sh: honour BENCHMARK_TIMELINE_DIR
+    # so a --run-dir run keeps all of its artifacts together.
+    local outdir="${BENCHMARK_TIMELINE_DIR:-benchmark_timeline}"
+    mkdir -p "$outdir"
+    RESOURCE_OUTPUT="$outdir/resources_$(date +%Y%m%d_%H%M%S).csv"
     echo "timestamp,namespace,pod,cpu,memory" > "$RESOURCE_OUTPUT"
 
     echo "Starting resource usage logging -> $RESOURCE_OUTPUT"

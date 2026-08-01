@@ -7,6 +7,17 @@ spec:
   selector:
     matchLabels:
       app: rtracker
+  # Recreate (not the default RollingUpdate): with a rolling update the NEW pod
+  # started while the OLD one was still terminating, and both mounted the SAME
+  # log directory. rtracker truncates latency_output.log at startup, so the new
+  # pod truncated a file the old pod still held an open fd on; the old pod kept
+  # writing at its previous offset, leaving a sparse file. This actually
+  # happened — benchmark_results/..._half_..._kafka_8p/Q4_sliding_spike/
+  # latency_output.log is 47 MB of Q4 data, then 1.234 GB of NUL bytes, then
+  # 56 MB of the PREVIOUS query's records (and ~12% of Q3's tail vanished the
+  # same way). Recreate guarantees the old pod is gone before the new starts.
+  strategy:
+    type: Recreate
   template:
     metadata:
       labels:
@@ -29,7 +40,14 @@ spec:
           configMap:
             name: rtracker-config
 
+        # emptyDir instead of the previous hostPath
+        # (/home/murat/BA/luftdaten-flink/latency-logs on the Minikube node):
+        #  * every restart starts from a guaranteed-empty directory, so no data
+        #    can leak between queries and no truncation race is possible;
+        #  * the logs (0.8-4 GB per query, plus as much again for the spool
+        #    file) are reclaimed with the pod instead of accumulating on a node
+        #    whose root filesystem is already 78% full;
+        #  * run.sh copies latency_output.log out with `kubectl cp` while the
+        #    pod is still alive, so nothing is lost.
         - name: data
-          hostPath:
-            path: /home/murat/BA/luftdaten-flink/latency-logs
-            type: DirectoryOrCreate
+          emptyDir: {}

@@ -6,9 +6,18 @@ metadata:
   labels:
     app: datagen
 spec:
-  activeDeadlineSeconds: 660
-  backoffLimit: 0               
-  ttlSecondsAfterFinished: 60  
+  # duration (600s in DatagenConfig) + CSV load + librdkafka flush, with margin.
+  # The generator's own `duration` timer starts AFTER it has parsed the 3.77 GB
+  # / 30.2M-row CSV into memory (measured: 9s warm page cache, considerably
+  # more cold), and it installs no signal handler — so a SIGTERM from
+  # activeDeadlineSeconds kills it mid-run with an undrained internal queue and
+  # an undrained librdkafka queue, losing records silently. 660s left only ~50s
+  # of margin over duration+load; 780s makes a cold-cache load safe.
+  activeDeadlineSeconds: 780
+  backoffLimit: 0
+  # 600, not 60: the harness streams the generator log while it runs, but a longer
+  # TTL also leaves the pod inspectable after a failed run.
+  ttlSecondsAfterFinished: 600
   template:
     metadata:
       labels:

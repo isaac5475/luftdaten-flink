@@ -1,255 +1,198 @@
-# Flink Benchmark Suite - Operational Guide
+# Flink Benchmark Suite — Operational Guide
 
-## Overview
+How to run the SPS30 query benchmarks, what the harness collects, and how to read the output.
 
-The benchmark suite has been enhanced to support comprehensive, reproducible testing of all 5 SPS30 queries with strict timing control and full configuration tracking for thesis reproducibility.
+> Read `SUPERVISOR_REPORT.md` first if you are interpreting results. It documents the load
+> shape the generator actually produces, which findings in the archive are invalid, and why.
 
-## Quick Start
+---
 
-### Run All Queries (600s per query)
+## Quick start
+
 ```bash
-./run_all_queries.sh --config-name "quarter_dataset_7m6_tuples_sec"
+# Full suite. The observation window is derived from the datagen duration —
+# do not pass --sleep unless you deliberately want a shorter run.
+./run_all_queries.sh --config-name "half_15m1_autoscaler_off" --isolate
+
+# Faster iteration (180s window per query, no image rebuild)
+./run_all_queries.sh --sleep 180 --skip-build --config-name "iteration_test"
+
+# One or two queries only
+./run_all_queries.sh --queries Q1,Q3 --skip-build --config-name "q1_q3_check"
+
+# Analyse, and compare two suites side by side
+python3 analyze_all_results.py benchmark_results/<run>
+python3 analyze_all_results.py benchmark_results/<off> benchmark_results/<on> --compare
+
+# One figure per query: input rate, backlog, parallelism, backpressure, CPU, memory, latency
+python3 plot_benchmark_timeline.py benchmark_results/<run>/<Q_label> -o out.png
 ```
 
-### Run All Queries Faster (300s per query, for iteration)
+`--isolate` scales the NebulaStream-side workloads to zero for the duration of the suite and
+restores them afterwards, so a Flink-only measurement really is Flink-only. Without it the
+harness prints how many foreign pods were resident and records the count in the metadata.
+
+The suite refuses to start from a dirty working tree (`--allow-dirty` overrides and stores the
+diff with the results).
+
+---
+
+## What the harness collects
+
+Per query, inside `benchmark_results/<label>_<timestamp>/<QueryName>/`:
+
+| file | content |
+|---|---|
+| `latency_output.log[.gz]` | one line per output record: `<latency_ms>,<payload…>,<datagen_emit_ms>,<rtracker_recv_ms>` |
+| `<timestamp>.csv` | Kafka per-partition offsets/lag + the Kubernetes event stream for the FlinkDeployment |
+| `resources_<timestamp>.csv` | `kubectl top pods` samples (CPU, memory) |
+| `parallelism_<timestamp>.csv` | applied parallelism and status per vertex |
+| `backpressure_<timestamp>.csv` | busy / backpressured / idle ms-per-second per vertex |
+| `throughput_<timestamp>.csv` | records in/out per second per vertex, plus source `pendingRecords` |
+| `checkpoints_<timestamp>.csv` | completed/failed counts, latest duration and state size |
+| `datagen_<timestamp>.log` | the generator's own log: realized schedule and end-of-run record counts |
+| `run_metadata/run_<timestamp>.json` | timings, load configuration, delivered record count, git commit |
+| `config_snapshot/` | verbatim copies of the manifests and `.env` used |
+| `timeline_<QueryName>.png` | the multi-panel figure |
+
+Plus, per suite: `SUITE_MANIFEST.md`, `MANIFEST.sha256`.
+
+**Parsing the latency log:** the latency is field **0**; the receive timestamp is the **last**
+field. The payload in between contains commas by construction (`Category: MODERATE, AQI: 56,
+…`), so never index a fixed positive position. Getting this wrong is what made the old analysis
+tool silently report nothing at all.
+
 ```bash
-./run_all_queries.sh --sleep 300 --skip-build --config-name "iteration_test"
+# correct
+zcat latency_output.log.gz | awk -F',' '{print $1}'          # latency ms
+zcat latency_output.log.gz | awk -F',' '{print $NF}'         # receive timestamp ms
+# Kafka lag from a timeline CSV: field 6 of the kafka_lag rows
+awk -F',' '$2=="kafka_lag" && $3 ~ /^[0-9]+$/ {print $1, $6}' <timestamp>.csv
 ```
 
-### Analyze Results
-```bash
-python3 analyze_all_results.py benchmark_results_quarter_dataset_7m6_tuples_sec_20260729_143000
-```
+---
 
-## Features
+## The measurement window
 
-### 1. Comprehensive Timing Tracking
-- **Start/end timestamps** (UTC with millisecond precision)
-- **Actual vs. requested duration** comparison
-- **Variance calculation** for timing validation
-- **Metadata JSON** file per run for reproducibility
+The window is anchored to **the first record that actually reaches Kafka**, not to the creation
+of the datagen Job — the generator parses a 3.77 GB / 30.2 M-row CSV into memory before it emits
+anything, and its own `duration` timer only starts after that. The run then ends when output
+stops (rtracker's log size stable for `LOG_STABLE_SECONDS`, default 45 s), bounded by
+`DRAIN_TIMEOUT` (default 240 s).
 
-### 2. Kafka Topic Cleanup
-The `run.sh` script automatically:
-1. Deletes the old `bid` topic before each query
-2. Recreates it from `k8s/topic.yaml`
-3. Clears the consumer group to ensure fresh offsets
-4. Waits for the topic to be ready before deploying Flink
+Tunables (environment variables, all optional):
 
-This ensures **no cross-contamination** between query runs.
+| variable | default | meaning |
+|---|---|---|
+| `SLEEP_SECONDS` | derived | override the window length explicitly |
+| `DRAIN_MARGIN` | 90 | added to the datagen duration when deriving the window |
+| `DRAIN_TIMEOUT` | 240 | give up waiting for output to stop |
+| `LOG_STABLE_SECONDS` | 45 | how long the latency log must not grow before the run ends |
+| `KAFKA_EXEC_TIMEOUT` | 20 | per-poll timeout for the broker CLI (3 s lost 8–66 % of samples) |
+| `FLINK_WAIT_TIMEOUT` | 420 | fail if the job does not reach RUNNING |
 
-### 3. Results Organization
-```
-benchmark_results_<config>_<timestamp>/
-├── Q1AQIHazardLevelStatelessFilterSPS30/
-│   ├── latency_output.log            # Raw latency measurements
-│   ├── run_metadata/
-│   │   └── run_<timestamp>.json      # Timing & config for this query
-│   ├── <timestamp>.csv               # Kafka lag timeline
-│   ├── resources_<timestamp>.csv     # CPU/memory samples
-│   ├── parallelism_<timestamp>.csv   # Parallelism over time
-│   └── latency_plot_*.png
-├── Q2CoarseParticleDominanceFilterSPS30/
-│   └── [same structure]
-...
-```
+**Do not** gate on Kafka lag reaching zero: it returns to zero between bursts, and it is a
+checkpoint-commit sawtooth rather than a true backlog. Use `pendingRecords` from
+`throughput_*.csv` when you need the real queue depth.
 
-## Configuration Parameters
+---
 
-### Data Generation
-Edit `k8s/DatagenConfig.yaml` before running:
+## Load configuration
+
+`k8s/DatagenConfig.yaml` (the `config.kafka.yaml` block is the one the Job reads):
 
 ```yaml
-data_rate: 76566253        # tuples/sec (7.66M for 1/4 dataset)
-period: 300000             # zipf period in ms (5 min)
-duration: 600              # total runtime in sec (10 min)
-
+data_rate: 15132506   # records PER PERIOD (not per second)
+period: 300000        # length of one burst→baseline cycle, ms
+duration: 600         # total generation time, s (starts after the CSV load)
+chunk_size: 1900000   # unused on this code path — see SUPERVISOR_REPORT.md
 pattern:
-  - type: burst            # bursty traffic pattern
-  - fraction: 0.7          # 70% of load in bursts
-  - distribution: 0.3      # 30% uniformly distributed
-
-zipf:
-  period_ms: 1000          # zipf period (should match `period`)
-  s: 1.4                   # zipf shape parameter (higher = more skewed)
-  stochastic: true
+  - type: burst
+  - fraction: 0.7     # share of the period's records inside the burst
+  - distribution: 0.3 # share of the period the burst occupies
 ```
 
-### Timing Control
-Edit `.env`:
-```bash
-SLEEP_SECONDS=600          # observation window per query
-```
+Effective mean rate = `data_rate / (period/1000)` = 50,444 rec/s here. With
+`fraction: 0.7` / `distribution: 0.3` the realized profile per 300 s period is 30 s at
+151,332/s, 60 s at 100,888/s, then the baseline.
 
-Or override at runtime:
-```bash
-./run_all_queries.sh --sleep 300
-```
+Two things the harness now checks before every run and records in the metadata:
 
-## Timing Validation
+1. **Dataset wrap.** Records emitted = `data_rate × duration×1000/period` must stay ≤ 30,265,013
+   (the CSV's row count). Beyond that the generator wraps, event time jumps ~2 years backwards,
+   and every windowed query silently drops everything after the wrap.
+2. **Silent tail.** With the generator's stock arithmetic, `distribution < fraction` leaves the
+   last `1 − distribution − (1 − fraction)` of every period emitting nothing (40 % here).
+   `k8s/DatagenJob.yaml` sets `DATAGEN_SPREAD_BASELINE=1` to spread the baseline over the whole
+   period instead; set it to `"0"` to reproduce a run made before that existed.
 
-Each run produces `run_metadata/run_<timestamp>.json`:
+---
 
-```json
-{
-  "start_time_utc": "2026-07-29T14:30:00.123Z",
-  "end_time_utc": "2026-07-29T14:40:05.456Z",
-  "actual_duration_seconds": 605,
-  "requested_duration_seconds": 600,
-  "timing_variance_percent": 0.83,
-  "kafka_topic": "bid",
-  "kafka_group": "luftdaten-benchmark"
-}
-```
+## Reading a timeline figure
 
-**Variance interpretation:**
-- **±5%** ✓ Acceptable (normal system variance)
-- **±10%** ⚠ Investigate (possible CPU/memory pressure)
-- **>10%** ✗ Check system load (minikube, docker, other processes)
+Panels share one time axis. Grey bands mark stretches where the generator produced nothing;
+dotted vertical lines mark the job reaching RUNNING (start, and every autoscaler rescale).
 
-## Expected Runtime
+* **Input rate** — reconstructed from Kafka high-watermark offsets, 10 s smoothed, against the
+  configured mean. This is the ground truth for "what load was applied".
+* **Backlog** — source `pendingRecords` where available, otherwise broker-reported consumer lag
+  (labelled as the sawtooth it is).
+* **Parallelism** — per vertex. Note the sink: `writeToSocket` pins it at 1, so the autoscaler
+  cannot scale it however much it scales the source.
+* **Busy / backpressure** — the panel that explains the latency curve. High busy = compute
+  bound; high backpressure = waiting on something downstream.
+* **CPU / memory** — separate panels on purpose. `kubectl top` refreshes only every ~53 s, so
+  a "peak" here is a ~53 s average and cannot be pinned to a single burst.
+* **Latency** — p50 and p95 per bucket. The line **breaks** where no records arrived; a
+  continuous line across a gap would imply traffic that never happened.
 
-For a full 5-query suite with 600s per query:
-- **Flink cluster setup + Kafka prep:** ~3 min (once per suite)
-- **Per-query runtime:** 10 min + 2 min cleanup
-- **Total time:** ~60 minutes for 5 queries
+Latency percentiles over a whole run mix a cold start, bursts of different intensity and an idle
+drain. `analyze_all_results.py` therefore reports them per input phase as well — quote the phase
+numbers, not just the aggregate.
 
-To speed up iteration:
-```bash
-./run_all_queries.sh --sleep 120 --skip-build
-```
-This reduces total time to ~20 minutes.
-
-## Analyzing Results
-
-### Quick Summary
-```bash
-python3 analyze_all_results.py benchmark_results_<dir>
-```
-
-Output:
-```
-TIMING VALIDATION
-─────────────────────────────
-  Q1AQIHazardLevelStatelessFilterSPS30    | 603s (req: 600s, var:  +0.5%) ✓
-  Q2CoarseParticleDominanceFilterSPS30    | 602s (req: 600s, var:  +0.3%) ✓
-  Q3TumblingWindowMapSPS30                | 604s (req: 600s, var:  +0.7%) ✓
-  Q4SlidingWindowFilterSPS30              | 601s (req: 600s, var:  +0.2%) ✓
-  Q5SlidingWindowExtendedAverageFilter    | 610s (req: 600s, var:  +1.7%) ⚠
-
-LATENCY STATISTICS (milliseconds)
-──────────────────────────────────────────────────────
-Query                                   | Samples |      Min |      Med |     Mean |      Max |        σ
-─────────────────────────────────────────────────────
-Q1AQIHazardLevelStatelessFilterSPS30    |  100000 |     12.10 |     22.00 |    29.10 |  1158.75 |    28.86
-Q2CoarseParticleDominanceFilterSPS30    |  100000 |      0.01 |     12.14 |    15.76 |   654.62 |    17.60
-Q3TumblingWindowMapSPS30                |  100000 |      5.20 |     18.50 |    24.30 |   890.40 |    32.15
-Q4SlidingWindowFilterSPS30              |  100000 |      8.90 |     25.80 |    38.20 |  1250.30 |    45.60
-Q5SlidingWindowExtendedAverageFilter    |   85000 |    157.60 |    208.58 |   373.72 |  9996.03 |   760.42
-```
-
-### Deep Dive: Latency Distribution
-```bash
-# Extract Q1 latencies for further analysis
-grep -h "^" benchmark_results_*/Q1*/latency_output.log | cut -d',' -f3 | sort -n > q1_latencies.txt
-
-# Compute percentiles
-awk '{sum+=$1; sumsq+=$1*$1; a[NR]=$1} 
-     END {
-       for(i=1;i<=NR;i++) if(i<=int(NR*0.05)) min=a[i]; 
-       for(i=1;i<=NR;i++) if(i>int(NR*0.95) && !p95) p95=a[i];
-       print "p50:", a[int(NR*0.5)], "p95:", p95, "p99:", a[int(NR*0.99)]
-     }' q1_latencies.txt
-```
-
-### Kafka Lag Analysis
-```bash
-# Extract kafka lag events from timeline
-awk -F',' '$2 == "kafka_lag" {print $1, $NF}' benchmark_results_*/*/*.csv | sort | uniq
-
-# Visualize lag progression (if you have gnuplot/matplotlib)
-# See latency-plotter.py for timeline visualization
-```
+---
 
 ## Troubleshooting
 
-### Issue: Run takes >10 minutes per query
-**Check:**
-- `docker ps` — is Minikube container responding?
-- `kubectl top nodes` — CPU/memory pressure?
-- `kubectl top pods -A` — any pod using >50% CPU?
+**A query produced no latency data.** The suite marks the directory `INCOMPLETE` and continues.
+Check `datagen_<timestamp>.log` for the record counts and `kubectl logs deployment/luftdaten-job`.
 
-**Solution:**
-```bash
-# Restart minikube if sluggish
-minikube stop && minikube start --driver=docker --cpus=12 --memory=12g
+**`analyze_all_results.py` warns about lag-poll loss > 5 %.** The broker CLI is timing out;
+raise `KAFKA_EXEC_TIMEOUT`. Rate and lag curves under-sample the bursts when this happens.
 
-# Monitor during next run
-watch -n 1 'kubectl top pods -n kafka && echo "---" && kubectl top nodes'
-```
+**A latency log is flagged CORRUPT.** Two rtracker pods shared one log file. Fixed
+(`strategy: Recreate`, pod-local `emptyDir`, single-pod barrier in `run.sh`), but any affected
+query has to be re-run — `tidy_benchmark_results.py` quarantines the file and explains why.
 
-### Issue: "Kafka topic not ready after 60s"
-**Cause:** Strimzi operator is slow on this system.
+**Run takes much longer than expected.** `kubectl top nodes`, `kubectl top pods -A`. Note that
+`minikube start --cpus/--memory` is silently ignored on an existing cluster: check the real
+limits with `docker inspect minikube --format '{{.HostConfig.NanoCpus}} {{.HostConfig.Memory}}'`.
 
-**Solution:**
-```bash
-# Check operator status
-kubectl get deploy -n kafka
-kubectl logs -n kafka -l name=strimzi-cluster-operator | tail -20
+---
 
-# Give it more time (edit run.sh if chronic):
-kubectl wait kafkatopic/"$KAFKA_TOPIC" -n kafka --for=condition=Ready --timeout=120s
-```
+## Reproducibility checklist
 
-### Issue: Q5 latencies are missing or sparse
-**Cause:** Complex windowed query may crash or fall behind under load. See [[open-items]] memory for Q5 status.
+- [ ] working tree committed (the suite enforces this)
+- [ ] `k8s/DatagenConfig.yaml` and `k8s/FlinkDeployment.yaml` reflect the intended experiment
+- [ ] run the suite; confirm each query reports `delivered ≈ configured` within 1 %
+- [ ] `python3 analyze_all_results.py <dir>` shows no integrity warnings
+- [ ] `python3 tidy_benchmark_results.py --apply` to index and checksum the archive
+- [ ] copy the results directory off this machine (the archive is not in git)
 
-**Check:**
-```bash
-# Watch the Flink job manager during the run
-kubectl logs -f deployment/luftdaten-job | grep -E "ERROR|Exception"
+---
 
-# Check if the job is running
-kubectl get pods -l app=luftdaten-job -o wide
-```
+## Files
 
-## Reproducibility Checklist
-
-Before running benchmarks for thesis handover:
-
-- [ ] Git commit current config (run.sh, .env, k8s/*.yaml)
-- [ ] Tag the commit with the data rate: `git tag -a "quarter_dataset_7m6tuples_300s_period_600s_duration_kafka_8p" -m "Q1-Q5 on SPS30 1/4 dataset"`
-- [ ] Run the benchmark suite
-- [ ] Verify timing variance is <5% for all queries
-- [ ] Save the results directory to external storage/cloud
-- [ ] Document any anomalies in run_notes.txt
-
-## Git Integration
-
-Tag your runs for reproducibility:
-```bash
-# Tag the config
-git tag -a "benchmark_$(date +%Y%m%d_%H%M%S)_all_queries" -m "Full Q1-Q5 suite, 600s per query"
-
-# Tag with data rate info (preferred)
-git tag -a "quarter_dataset_bursty_7m6tuples_600s_kafka_8p" -m "Q1-Q5, 7.66M tuples/sec, 600s runtime"
-
-# Push for safe keeping
-git push origin --tags
-```
-
-When you need to reproduce:
-```bash
-git checkout quarter_dataset_bursty_7m6tuples_600s_kafka_8p
-./run_all_queries.sh --config-name "reproduction_q1_q5"
-```
-
-## References
-
-- **run.sh** — single-query orchestrator (called by run_all_queries.sh)
-- **run_all_queries.sh** — suite orchestrator (new, runs all 5 queries)
-- **analyze_all_results.py** — timing validation & latency analysis
-- **utils/timeline_logging.sh** — Kafka lag + pod events logger
-- **utils/resource_logging.sh** — CPU/memory tracker
-- **utils/parallelism_logging.sh** — Flink parallelism tracker
-- **latency-plotter.py** — visualization script (existing)
+| file | role |
+|---|---|
+| `run.sh` | one query end to end |
+| `run_all_queries.sh` | the suite, per-query result directories, manifest |
+| `analyze_all_results.py` | coverage, latency (overall and per phase), load, elasticity, integrity |
+| `plot_benchmark_timeline.py` | the multi-panel figure |
+| `latency-plotter.py` | single-run full-resolution latency plot |
+| `tidy_benchmark_results.py` | normalise, index and checksum the stored archive |
+| `utils/timeline_logging.sh` | Kafka offsets/lag + Kubernetes events |
+| `utils/resource_logging.sh` | `kubectl top` sampling |
+| `utils/flink_metrics_logging.sh` + `utils/flink_metrics_poll.py` | parallelism, backpressure, throughput, checkpoints |
+| `utils/parallelism_logging.sh` | superseded by `flink_metrics_logging.sh`; kept for older invocations |
+| `infra/datagen_baseline_spread.patch` | the datagen patch, for re-applying after a submodule update |

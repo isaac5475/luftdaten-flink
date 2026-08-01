@@ -10,9 +10,26 @@ data:
 
     processing:
       latency_worker_threads: 16
+      # The spool file is NOT an optional debug artifact: rtracker appends every
+      # received tuple to it (with an ofstream flush per line, on the single
+      # receive thread) and then reads it back off disk as the only feeder of the
+      # latency queue. So it cannot be disabled or pointed at /dev/null — but it
+      # does mean each measured tuple makes a synchronous disk round-trip inside
+      # the component that measures latency, which is a real contributor to the
+      # numbers and a throughput ceiling. It now lives on the pod-local emptyDir
+      # mounted at /app/latency-logs (it is ~0.95x the size of the latency log,
+      # so it used to leave a second multi-GB copy of every run on the node).
+      # For a lower-interference variant, switch that volume to
+      # `emptyDir: {medium: Memory, sizeLimit: 8Gi}` — faster and off the disk,
+      # at the cost of RAM and an ENOSPC risk if a run exceeds the limit.
       spool_file: /app/latency-logs/timestamped_tuples.log
       latency_output_file: /app/latency-logs/latency_output.log
-      print_to_terminal: true
+      # MUST stay false for benchmark runs: with `true`, rtracker printed one
+      # line per received tuple to stdout, which the kubelet then wrote to the
+      # node's container log — a second full copy of a 0.8-4 GB log per query,
+      # on the write path of the very component whose latency is being
+      # measured. Only enable it for interactive debugging at a tiny data rate.
+      print_to_terminal: false
 kind: ConfigMap
 metadata:
   name: rtracker-config
