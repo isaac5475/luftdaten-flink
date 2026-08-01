@@ -190,7 +190,7 @@ def main():
     if not vertices:
         par_rows.append(f"{ts},{job_id},NA,NA,NA,NA")
         bp_rows.append(f"{ts},{job_id},NA,NA,NA,NA,NA")
-        tp_rows.append(f"{ts},{job_id},NA,NA,NA,NA,NA,NA")
+        tp_rows.append(f"{ts},{job_id},NA,NA,NA,NA,NA")
 
     for v in vertices:
         vid = v.get("id", "NA")
