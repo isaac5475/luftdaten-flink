@@ -494,15 +494,6 @@ PATTERN_PLOT_PID=""
 PATTERN_PORTFWD_PID=""
 if [ -n "$PLOT_PATTERN_OUT" ]; then
     PATTERN_LOCAL_PORT=${PATTERN_LOCAL_PORT:-19090}
-    kubectl port-forward svc/datagen "${PATTERN_LOCAL_PORT}:9090" \
-        > /tmp/luftdaten-pattern-portforward.log 2>&1 &
-    PATTERN_PORTFWD_PID=$!
-
-    for _ in $(seq 1 15); do
-        (exec 3<>"/dev/tcp/127.0.0.1/${PATTERN_LOCAL_PORT}") 2>/dev/null && { exec 3>&-; break; }
-        sleep 1
-    done
-
     PATTERN_CAPTURE_SECONDS=$(( DATAGEN_PERIOD_MS / 1000 + 30 ))
     # patternTest_timeseries.py's --timeout is a per-read socket timeout, not a
     # capture budget: it raises (uncaught) the instant no byte arrives within
@@ -514,15 +505,48 @@ if [ -n "$PLOT_PATTERN_OUT" ]; then
     [ "$PATTERN_READ_TIMEOUT" -lt 30 ] && PATTERN_READ_TIMEOUT=30
     mkdir -p "$(dirname "$PLOT_PATTERN_OUT")"
     PATTERN_PY=venv/bin/python3; [ -x "$PATTERN_PY" ] || PATTERN_PY=python3
-    echo "Capturing burst pattern for ${PATTERN_CAPTURE_SECONDS}s (read timeout ${PATTERN_READ_TIMEOUT}s) -> $PLOT_PATTERN_OUT (background)..."
-    "$PATTERN_PY" infra/datagen_parallel/patternTest_timeseries.py \
-        --host 127.0.0.1 --port "$PATTERN_LOCAL_PORT" \
-        --timeout "$PATTERN_READ_TIMEOUT" \
-        --duration "$PATTERN_CAPTURE_SECONDS" \
-        --out "$PLOT_PATTERN_OUT" \
-        --csv "${PLOT_PATTERN_OUT%.png}.csv" \
-        > /tmp/luftdaten-pattern-plot.log 2>&1 &
-    PATTERN_PLOT_PID=$!
+
+    # "First record in Kafka" (used to gate everything else in this script)
+    # does not prove the generator's TCP acceptor is bound yet -- it runs on a
+    # separate thread from Kafka publishing, so there is a real startup race.
+    # A bare `/dev/tcp` probe against the LOCAL forwarded port cannot detect
+    # this: kubectl port-forward accepts the local connection immediately and
+    # only discovers the remote pod port isn't listening a moment later, at
+    # which point (observed in practice) it doesn't just fail that one
+    # connection -- the whole port-forward process exits ("lost connection to
+    # pod"), taking down the tunnel for every subsequent attempt too. So
+    # instead of trusting a probe, launch the real capture and check a few
+    # seconds later whether it is still alive: a connection-refused failure
+    # exits almost immediately, while a successful connection is still
+    # blocked reading the stream.
+    for attempt in 1 2 3 4 5; do
+        kubectl port-forward svc/datagen "${PATTERN_LOCAL_PORT}:9090" \
+            > /tmp/luftdaten-pattern-portforward.log 2>&1 &
+        PATTERN_PORTFWD_PID=$!
+        sleep 2
+
+        echo "Capturing burst pattern for ${PATTERN_CAPTURE_SECONDS}s (read timeout ${PATTERN_READ_TIMEOUT}s) -> $PLOT_PATTERN_OUT (attempt ${attempt}/5, background)..."
+        "$PATTERN_PY" infra/datagen_parallel/patternTest_timeseries.py \
+            --host 127.0.0.1 --port "$PATTERN_LOCAL_PORT" \
+            --timeout "$PATTERN_READ_TIMEOUT" \
+            --duration "$PATTERN_CAPTURE_SECONDS" \
+            --out "$PLOT_PATTERN_OUT" \
+            --csv "${PLOT_PATTERN_OUT%.png}.csv" \
+            > /tmp/luftdaten-pattern-plot.log 2>&1 &
+        PATTERN_PLOT_PID=$!
+
+        sleep 3
+        if kill -0 "$PATTERN_PLOT_PID" 2>/dev/null; then
+            break
+        fi
+        echo "  pattern capture failed fast (port-forward likely raced the generator's TCP bind) -- retrying..."
+        kill "$PATTERN_PORTFWD_PID" 2>/dev/null || true
+        wait "$PATTERN_PORTFWD_PID" 2>/dev/null || true
+        PATTERN_PLOT_PID=""
+        PATTERN_PORTFWD_PID=""
+        sleep 2
+    done
+    [ -z "$PATTERN_PLOT_PID" ] && echo "  WARNING: burst pattern capture did not connect after 5 attempts -- see /tmp/luftdaten-pattern-plot.log"
 fi
 
 progress_bar "$OBSERVE_SECONDS"
