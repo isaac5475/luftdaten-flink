@@ -81,8 +81,8 @@ spec:
 
     taskmanager.numberOfTaskSlots: "4"
 
-    job.autoscaler.enabled: "false"
-    job.autoscaler.scaling.enabled: "false"
+    job.autoscaler.enabled: "true"
+    job.autoscaler.scaling.enabled: "true"
 
     # target utilization
     job.autoscaler.target.max: "0.8"
