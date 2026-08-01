@@ -214,6 +214,12 @@ for entry in "${JOBS[@]}"; do
         # First query does the one-time work: image build/load (unless skipped)
         # and the cluster prerequisite checks.
         [ "$SKIP_BUILD" = true ] && RUN_ARGS+=(--skip-build)
+        # The burst pattern (data_rate/period/duration/fraction/distribution)
+        # is the same DatagenConfig for every query in the suite, so it is
+        # captured once here rather than once per query, straight into the
+        # suite root (not a per-query directory) since it describes the whole
+        # suite's load, not any single query's run.
+        RUN_ARGS+=(--plot-pattern-out "$RESULTS_DIR/burst_pattern.png")
     else
         RUN_ARGS+=(--skip-build --skip-infra)
     fi
@@ -287,6 +293,7 @@ MANIFEST="$RESULTS_DIR/SUITE_MANIFEST.md"
     echo "- kafka partitions: $PARTITIONS"
     echo "- NebulaStream isolated: $ISOLATE"
     echo "- host: $(hostname)"
+    [ -s "$RESULTS_DIR/burst_pattern.png" ] && echo "- burst pattern: burst_pattern.png (same load pattern for every query above)"
     echo
     echo "## Queries"
     echo

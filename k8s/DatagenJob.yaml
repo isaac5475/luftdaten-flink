@@ -9,10 +9,11 @@ spec:
   # duration (600s in DatagenConfig) + CSV load + librdkafka flush, with margin.
   # The generator's own `duration` timer starts AFTER it has parsed the 3.77 GB
   # / 30.2M-row CSV into memory (measured: 9s warm page cache, considerably
-  # more cold), and it installs no signal handler — so a SIGTERM from
-  # activeDeadlineSeconds kills it mid-run with an undrained internal queue and
-  # an undrained librdkafka queue, losing records silently. 660s left only ~50s
-  # of margin over duration+load; 780s makes a cold-cache load safe.
+  # more cold). It now handles SIGTERM/SIGINT by draining its internal queue and
+  # flushing librdkafka before exiting, so a deadline kill no longer loses
+  # records silently -- but the drain+flush itself still takes time, so 660s
+  # left only ~50s of margin over duration+load; 780s makes a cold-cache load
+  # plus a clean shutdown safe.
   activeDeadlineSeconds: 780
   backoffLimit: 0
   # 600, not 60: the harness streams the generator log while it runs, but a longer
@@ -35,6 +36,13 @@ spec:
               value: /usr/local/bin/datagen_shared
             - name: DATAGEN_CONFIG
               value: /app/config/config.kafka.yaml
+            # Spreads the non-burst region of every period evenly instead of
+            # even_split()'s default (which, for this config, packs the whole
+            # non-burst share into the first few buckets and leaves the last
+            # ~120s of every 300s period completely silent). See
+            # spread_baseline_enabled() in datagen_batch_shared.cpp.
+            - name: DATAGEN_SPREAD_BASELINE
+              value: "1"
           volumeMounts:
             - mountPath: /app/config/
               name: config

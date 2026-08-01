@@ -46,16 +46,27 @@ source "$SCRIPT_DIR/utils/flink_metrics_logging.sh"
 #                     Replaces the old `find -newer` result shuffling in
 #                     run_all_queries.sh, which silently depended on file
 #                     mtimes and could pick up (or miss) files.
+# --plot-pattern-out FILE
+#                     Capture the datagen burst pattern as it is actually
+#                     produced (via patternTest_timeseries.py against the
+#                     `datagen` Service's TCP broadcast port, which every
+#                     record is fanned out to independently of the Kafka
+#                     publish path — connecting a client to it cannot affect
+#                     delivery) and save it to FILE. Optional: the load
+#                     pattern is identical across every query in a suite, so
+#                     run_all_queries.sh only passes this for the first one.
 # ---------------------------------------------------------------------------
 SKIP_BUILD=false
 SKIP_INFRA=false
 RUN_DIR=""
+PLOT_PATTERN_OUT=""
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --skip-build|-s) SKIP_BUILD=true; shift ;;
-        --skip-infra)    SKIP_INFRA=true; shift ;;
-        --run-dir)       RUN_DIR="$2"; shift 2 ;;
-        *) echo "Unknown option: $1"; echo "Usage: ./run.sh [--skip-build] [--skip-infra] [--run-dir DIR]"; exit 1 ;;
+        --skip-build|-s)     SKIP_BUILD=true; shift ;;
+        --skip-infra)        SKIP_INFRA=true; shift ;;
+        --run-dir)           RUN_DIR="$2"; shift 2 ;;
+        --plot-pattern-out)  PLOT_PATTERN_OUT="$2"; shift 2 ;;
+        *) echo "Unknown option: $1"; echo "Usage: ./run.sh [--skip-build] [--skip-infra] [--run-dir DIR] [--plot-pattern-out FILE]"; exit 1 ;;
     esac
 done
 
@@ -188,29 +199,21 @@ if [ "$EXPECTED_RECORDS" -gt "$DATASET_ROWS" ]; then
     echo "  !! timestamp as the event-time attribute before raising the rate further."
 fi
 
-# --- Preflight 2: silent tail -------------------------------------------------
-# The burst pattern packs `fraction` of the records into the first
-# `distribution` share of the period, then places the REST at exactly one
-# record per bucket immediately after — leaving the end of every period with
-# no records at all whenever distribution < fraction. That silent tail is why
-# stored runs cover ~480s of a 600s "duration": it is not truncation, it is the
-# generator's own schedule.
+# Expected silent-tail duration, used below to size the pattern-capture read
+# timeout and recorded in run metadata. Not printed as a preflight prediction:
+# that used to describe what DATAGEN_SPREAD_BASELINE in the YAML *claims* the
+# generator will do, decoupled from what the deployed datagen_parallel binary
+# actually implements — when the binary and the YAML flag disagreed (as
+# happened when the spread-baseline fix was reverted upstream while the YAML
+# still referenced it), the message asserted a silent tail had been eliminated
+# when it had not.
 SPREAD_BASELINE=$(awk '/DATAGEN_SPREAD_BASELINE/{getline; gsub(/[" ]/,"",$2); print $2; exit}' "$DATAGEN_JOB_YAML")
 if [ -n "$DATAGEN_FRACTION" ] && [ -n "$DATAGEN_DISTRIBUTION" ]; then
     SILENT_FRACTION=$(awk -v f="$DATAGEN_FRACTION" -v d="$DATAGEN_DISTRIBUTION" \
         'BEGIN{ s = 1 - d - (1 - f); if (s < 0) s = 0; printf "%.3f", s }')
     SILENT_SECONDS=$(awk -v s="$SILENT_FRACTION" -v p="$DATAGEN_PERIOD_MS" 'BEGIN{printf "%.0f", s*p/1000}')
     case "$SPREAD_BASELINE" in
-        1|t*|T*|y*|Y*)
-            echo "Preflight: DATAGEN_SPREAD_BASELINE=$SPREAD_BASELINE — the baseline is spread over the whole"
-            echo "           period, so there is no silent tail (it would otherwise be ${SILENT_SECONDS}s per period)."
-            SILENT_SECONDS=0
-            ;;
-        *)
-            echo "Preflight: expected silent tail = ${SILENT_SECONDS}s at the end of every ${DATAGEN_PERIOD_MS}ms period"
-            echo "           (i.e. $(awk -v s="$SILENT_FRACTION" 'BEGIN{printf "%.0f", s*100}')% of each period generates no"
-            echo "           records at all, so the last record of this run lands well before the window closes)."
-            ;;
+        1|t*|T*|y*|Y*) SILENT_SECONDS=0 ;;
     esac
 fi
 
@@ -314,6 +317,10 @@ kubectl delete configmap/rtracker-config --ignore-not-found
 kubectl delete configmap/datagen-config --ignore-not-found
 kubectl apply -f k8s/DatagenConfig.yaml
 kubectl apply -f k8s/RTrackerConfig.yaml
+# Idempotent; only actually needed on a freshly (re)created cluster, but
+# --plot-pattern-out depends on it existing, so it is applied unconditionally
+# rather than adding a first-run-only special case.
+kubectl apply -f k8s/DatagenService.yaml
 kubectl apply -f k8s/RTrackerDeployment.yaml
 kubectl apply -f k8s/RTrackerService.yaml
 
@@ -475,6 +482,49 @@ PRODUCTION_START_TIME=$(iso_now)
 echo "First record observed after ${DATAGEN_LOAD_SECONDS}s of CSV loading."
 echo "Measurement window: ${OBSERVE_SECONDS}s starting now."
 
+# ---------------------------------------------------------------------------
+# Optional: capture the burst pattern as actually produced. Runs in the
+# background, concurrently with the observe/drain window below, against the
+# datagen Service's TCP broadcast (independent of the Kafka publish path, so
+# this cannot perturb the measurement). One period is enough to show a full
+# burst/baseline/silent-tail cycle; +30s covers the port-forward's own
+# connection setup so the capture doesn't miss the very start of a period.
+# ---------------------------------------------------------------------------
+PATTERN_PLOT_PID=""
+PATTERN_PORTFWD_PID=""
+if [ -n "$PLOT_PATTERN_OUT" ]; then
+    PATTERN_LOCAL_PORT=${PATTERN_LOCAL_PORT:-19090}
+    kubectl port-forward svc/datagen "${PATTERN_LOCAL_PORT}:9090" \
+        > /tmp/luftdaten-pattern-portforward.log 2>&1 &
+    PATTERN_PORTFWD_PID=$!
+
+    for _ in $(seq 1 15); do
+        (exec 3<>"/dev/tcp/127.0.0.1/${PATTERN_LOCAL_PORT}") 2>/dev/null && { exec 3>&-; break; }
+        sleep 1
+    done
+
+    PATTERN_CAPTURE_SECONDS=$(( DATAGEN_PERIOD_MS / 1000 + 30 ))
+    # patternTest_timeseries.py's --timeout is a per-read socket timeout, not a
+    # capture budget: it raises (uncaught) the instant no byte arrives within
+    # that window. The burst pattern's own silent tail (SILENT_SECONDS, computed
+    # above in Preflight 2) routinely exceeds the script's 5s default, which
+    # crashes the capture partway through every single time this pattern is used
+    # -- so it must always be overridden here, not just when SILENT_SECONDS>0.
+    PATTERN_READ_TIMEOUT=$(( ${SILENT_SECONDS:-0} + 30 ))
+    [ "$PATTERN_READ_TIMEOUT" -lt 30 ] && PATTERN_READ_TIMEOUT=30
+    mkdir -p "$(dirname "$PLOT_PATTERN_OUT")"
+    PATTERN_PY=venv/bin/python3; [ -x "$PATTERN_PY" ] || PATTERN_PY=python3
+    echo "Capturing burst pattern for ${PATTERN_CAPTURE_SECONDS}s (read timeout ${PATTERN_READ_TIMEOUT}s) -> $PLOT_PATTERN_OUT (background)..."
+    "$PATTERN_PY" infra/datagen_parallel/patternTest_timeseries.py \
+        --host 127.0.0.1 --port "$PATTERN_LOCAL_PORT" \
+        --timeout "$PATTERN_READ_TIMEOUT" \
+        --duration "$PATTERN_CAPTURE_SECONDS" \
+        --out "$PLOT_PATTERN_OUT" \
+        --csv "${PLOT_PATTERN_OUT%.png}.csv" \
+        > /tmp/luftdaten-pattern-plot.log 2>&1 &
+    PATTERN_PLOT_PID=$!
+fi
+
 progress_bar "$OBSERVE_SECONDS"
 
 # ---------------------------------------------------------------------------
@@ -534,6 +584,17 @@ echo "Wall clock total: ${RUN_DURATION}s | measured window: ${MEASURED_WINDOW}s 
 # ---------------------------------------------------------------------------
 # Collect results
 # ---------------------------------------------------------------------------
+if [ -n "$PATTERN_PLOT_PID" ]; then
+    echo "Waiting for burst pattern capture to finish..."
+    wait "$PATTERN_PLOT_PID" 2>/dev/null || echo "  (pattern capture exited non-zero; see /tmp/luftdaten-pattern-plot.log)"
+    if [ -s "$PLOT_PATTERN_OUT" ]; then
+        echo "  burst pattern plot: $PLOT_PATTERN_OUT"
+    else
+        echo "  WARNING: no burst pattern plot was produced — check /tmp/luftdaten-pattern-plot.log"
+    fi
+fi
+[ -n "$PATTERN_PORTFWD_PID" ] && kill "$PATTERN_PORTFWD_PID" 2>/dev/null || true
+
 echo "Collecting datagen log..."
 kill "$DATAGEN_LOG_PID" 2>/dev/null || true
 wait "$DATAGEN_LOG_PID" 2>/dev/null || true
